@@ -1,13 +1,13 @@
 // 고객에게 나가는 자료(카드뉴스·제안서)의 공통 디자인 체계
 //
-// 방향: "도장이 찍힌 공문서". 부동산 문서(등기·계약서)의 언어를 가져온다.
+// 방향: 격식 있는 공문서. 부동산 문서(등기·계약서)의 언어를 가져온다.
 //  - 흰 종이 위 먹남색 명조 제목, 표와 가는 괘선으로 정보를 정리한다 (카드 상자를 쌓지 않는다)
-//  - 주홍은 도장과 상승(▲) 표시에만 쓴다. 파랑은 하락(▼)에만 쓴다.
+//  - 주홍은 상승(▲) 표시와 작은 표식에만 쓴다. 파랑은 하락(▼)에만 쓴다.
 //  - 배경 무늬는 지적도(필지 경계선)에서 가져온다.
 export const C = {
   ink: '#121a2c', // 본문 먹색
   indigo: '#172a54', // 쪽빛 (주조색)
-  seal: '#c4321d', // 인주 주홍
+  seal: '#c4321d', // 주홍 (상승·강조)
   down: '#1c54c0', // 하락
   paper: '#ffffff',
   mist: '#eef1f6',
@@ -142,83 +142,6 @@ export function parcels(c: Ctx, x: number, y: number, w: number, h: number, colo
       }
     }
   c.stroke()
-  c.restore()
-}
-
-function arcText(c: Ctx, s: string, r: number, mid: number, o: TextStyle, top: boolean) {
-  setFont(c, { ...o, align: 'center' })
-  const gap = o.size * 0.16
-  const widths = [...s].map((ch) => c.measureText(ch).width + gap)
-  const total = widths.reduce((a, b) => a + b, 0)
-  let a = mid - ((top ? 1 : -1) * total) / r / 2
-  ;[...s].forEach((ch, i) => {
-    const half = ((top ? 1 : -1) * widths[i]) / r / 2
-    a += half
-    c.save()
-    c.rotate(a)
-    c.translate(0, top ? -r : r)
-    if (!top) c.rotate(0)
-    c.textBaseline = top ? 'alphabetic' : 'hanging'
-    c.fillText(ch, 0, 0)
-    c.restore()
-    a += half
-  })
-}
-
-/** 날짜 도장(일부인): 위쪽 호에 지역, 가운데 날짜, 아래쪽 호에 문서 이름 */
-export function dateStamp(c: Ctx, cx: number, cy: number, r: number, top: string, date: string, bottom: string, rot = -0.14) {
-  c.save()
-  c.translate(cx, cy)
-  c.rotate(rot)
-  c.strokeStyle = C.seal
-  c.globalAlpha = 0.92
-  c.lineWidth = r * 0.05
-  c.beginPath()
-  c.arc(0, 0, r, 0, Math.PI * 2)
-  c.stroke()
-  c.lineWidth = r * 0.018
-  c.beginPath()
-  c.arc(0, 0, r * 0.9, 0, Math.PI * 2)
-  c.stroke()
-  // 가운데 날짜 띠
-  const band = r * 0.27
-  const half = Math.sqrt(r * r * 0.81 - band * band)
-  c.lineWidth = r * 0.028
-  c.beginPath()
-  c.moveTo(-half, -band)
-  c.lineTo(half, -band)
-  c.moveTo(-half, band)
-  c.lineTo(half, band)
-  c.stroke()
-  const o = { color: C.seal, weight: 800, font: SANS }
-  let ds = r * 0.34
-  while (ds > 10 && width(c, date, { ...o, size: ds }) > half * 1.86) ds -= 1
-  text(c, date, 0, ds * 0.36, { ...o, size: ds, align: 'center', alpha: 0.92 })
-  c.globalAlpha = 0.92
-  let ts = r * 0.2
-  while (ts > 10 && width(c, top, { ...o, size: ts }) * 1.2 > r * 0.62 * 2.4) ts -= 1
-  arcText(c, top, r * 0.5, 0, { ...o, size: ts, font: SERIF, weight: 900 }, true)
-  arcText(c, bottom, r * 0.5, 0, { ...o, size: r * 0.15, weight: 700 }, false)
-  c.restore()
-}
-
-/** 네모 도장: 네 글자를 두 줄로 (왼쪽 위부터 읽는다) */
-export function squareSeal(c: Ctx, x: number, y: number, size: number, four: string, rot = 0.05) {
-  c.save()
-  c.translate(x + size / 2, y + size / 2)
-  c.rotate(rot)
-  c.globalAlpha = 0.93
-  c.strokeStyle = C.seal
-  c.lineWidth = size * 0.07
-  c.strokeRect(-size / 2, -size / 2, size, size)
-  const ch = [...four].slice(0, 4)
-  const q = size / 4
-  const pos: [number, number][] = [[-q, -q], [q, -q], [-q, q], [q, q]]
-  ch.forEach((s, i) => {
-    setFont(c, { size: size * 0.4, weight: 900, font: SERIF, color: C.seal, align: 'center' })
-    c.textBaseline = 'middle'
-    c.fillText(s, pos[i][0] * 0.88, pos[i][1] * 0.88 + size * 0.02)
-  })
   c.restore()
 }
 

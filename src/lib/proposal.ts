@@ -1,7 +1,7 @@
 // 손님 맞춤 매물 제안서 (1920×1080, 장마다 PNG). 디자인 체계는 design.ts 참고.
 // 글꼴과 배치가 어느 기기에서나 똑같이 보이도록 그림으로 만들고, PPT 에는 한 장씩 전체 화면으로 넣는다.
 import type { Consult, Settings } from '../data/sample'
-import { C, SERIF, canvas, clip, dotDate, fitText, issueNo, loadFonts, para, parcels, rect, rule, squareSeal, text, width, type Ctx } from './design'
+import { C, SERIF, canvas, clip, dotDate, fitText, issueNo, loadFonts, para, parcels, rect, rule, text, width, type Ctx } from './design'
 import type { Match } from './match'
 import { downloadDataUrl, koDate, today, won } from './util'
 
@@ -65,7 +65,6 @@ function cover(c2: Consult, picks: Match[], s: Settings) {
   const off = { size: 40, weight: 700, font: SERIF }
   const office = clip(c, s.office, split - M * 2 - 120, off)
   text(c, office, M, H - 84, off)
-  squareSeal(c, M + width(c, office, off) + 18, H - 172, 120, '매물제안')
   return cv
 }
 

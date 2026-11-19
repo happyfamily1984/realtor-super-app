@@ -1,6 +1,6 @@
 // 데일리 브리핑 카드뉴스 (1080×1350 PNG). 디자인 체계는 design.ts 참고.
 import type { News, Trade } from '../data/sample'
-import { C, SERIF, canvas, clip, dateStamp, dotDate, fitText, issueNo, lines, loadFonts, para, parcels, rect, rule, text, width, type Ctx } from './design'
+import { C, SERIF, canvas, clip, dotDate, fitText, issueNo, lines, loadFonts, para, parcels, rect, rule, text, width, type Ctx } from './design'
 import { daysUntil, shortDate, won } from './util'
 
 const W = 1080
@@ -51,7 +51,10 @@ function cover(inp: CardInput, total: number) {
 
   rect(c, M, 84, 8, 44, C.indigo)
   text(c, `제 ${issueNo()} 호`, M + 26, 118, { size: 30, weight: 600, color: C.indigo })
-  dateStamp(c, R - 138, 236, 150, inp.region.split(' ')[0] || inp.region, dotDate(), '데일리 브리핑')
+  // 오른쪽 위: 날짜를 크게
+  const now = new Date()
+  text(c, `${now.getMonth() + 1}.${String(now.getDate()).padStart(2, '0')}`, R, 196, { size: 120, weight: 800, color: C.indigo, align: 'right' })
+  text(c, `${now.getFullYear()}년 ${'일월화수목금토'[now.getDay()]}요일`, R, 246, { size: 28, weight: 600, color: C.sub, align: 'right' })
 
   fitText(c, inp.region, M, 560, W - M * 2, { size: 124, weight: 900, font: SERIF, color: C.indigo }, 64)
   text(c, '부동산', M, 696, { size: 92, weight: 700, font: SERIF, color: C.ink })
