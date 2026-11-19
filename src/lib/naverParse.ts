@@ -6,6 +6,8 @@ import { today, uid } from './util'
 export interface CollectorFile {
   source?: string
   responses?: { url: string; data: unknown }[]
+  fullRegions?: string[] // 확장 프로그램이 끝까지 수집한 동 코드
+  regionNames?: Record<string, string> // 확장 프로그램이 알려 준 동 이름
   pageText?: string
 }
 
@@ -88,7 +90,7 @@ function each(d: unknown, fn: (o: Record<string, unknown>) => void, depth = 0) {
 
 /** 수집 파일에 담긴 지역 이름표 (코드 → "아현동") */
 export function parseRegionNames(file: CollectorFile): Record<string, string> {
-  const names: Record<string, string> = {}
+  const names: Record<string, string> = { ...(file.regionNames ?? {}) }
   ;(file.responses ?? []).forEach((r) =>
     each(r.data, (o) => {
       const code = asRegion(o.cortarNo ?? o.legalDivisionNumber)
@@ -159,8 +161,8 @@ export function parseCollectorFile(file: CollectorFile): Listing[] {
         }
         const l = toListing(el as Record<string, unknown>)
         if (l) {
-          if (ctx.region && !ctx.complexNo) l.scope = 'region'
           l.region = l.region || ctx.region || complexRegion.get(`no:${ctx.complexNo}`) || complexRegion.get(`nm:${l.group}`) || undefined
+          if ((ctx.region && !ctx.complexNo) || (l.region && file.fullRegions?.includes(l.region))) l.scope = 'region'
           if (!found.has(l.key!)) found.set(l.key!, l)
         } else walk(el, depth + 1)
       }

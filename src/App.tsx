@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Confirm, DataCtx, Icon, type Intent, type Tab } from './components/ui'
 import { DEFAULT_SETTINGS, LISTINGS, SAMPLE_CONSULTS, SAMPLE_CONTRACTS, type Consult, type Contract, type Listing, type Settings } from './data/sample'
 import { exitApp, initNav, stayInApp, useBackLayer } from './lib/nav'
-import { usePersist } from './lib/util'
+import { mergeListings, parseCollectorFile, parseRegionNames, type CollectorFile } from './lib/naverParse'
+import { toast, usePersist } from './lib/util'
 import Briefing from './pages/Briefing'
 import ConsultPage from './pages/Consult'
 import Contracts from './pages/Contracts'
@@ -28,6 +29,35 @@ export default function App() {
   const [askExit, setAskExit] = useState(false)
   const [exited, setExited] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
+  const [listKey, setListKey] = useState(0)
+  const listingsRef = useRef(listings)
+  listingsRef.current = listings
+
+  // PC 확장 프로그램(매물 수집기)이 넘겨준 수집 결과를 바로 반영
+  useEffect(() => {
+    const h = (e: MessageEvent) => {
+      if (e.source !== window || e.data?.type !== 'rsa-collection') return
+      const file = e.data.file as CollectorFile
+      if (file?.source !== 'realtor-super-app-collector') return
+      window.postMessage({ type: 'rsa-collection-ack' }, location.origin)
+      const items = parseCollectorFile(file)
+      if (!items.length) return toast('수집기에서 받은 파일에 매물이 없습니다. 매물 > 가져오기에서 파일을 직접 선택해 주세요.')
+      try {
+        const names = { ...JSON.parse(localStorage.getItem('regionNames') || '{}'), ...parseRegionNames(file) }
+        localStorage.setItem('regionNames', JSON.stringify(names))
+      } catch {
+        /* 무시 */
+      }
+      const m = mergeListings(listingsRef.current, items)
+      setListings(m.list)
+      setListKey((k) => k + 1)
+      setIntent(null)
+      setTab('listings')
+      toast(`수집기에서 매물 ${items.length}건 · 신규 ${m.added} · 가격변동 ${m.changed} · 사라짐 ${m.gone}`)
+    }
+    window.addEventListener('message', h)
+    return () => window.removeEventListener('message', h)
+  }, [])
 
   // 홈에서 뒤로가기 → 종료 확인
   useEffect(() => initNav(() => setAskExit(true)), [])
@@ -66,7 +96,7 @@ export default function App() {
         <main>
           {tab === 'home' && <Home go={go} />}
           {tab === 'briefing' && <Briefing {...page} />}
-          {tab === 'listings' && <Listings />}
+          {tab === 'listings' && <Listings key={listKey} />}
           {tab === 'consult' && <ConsultPage {...page} />}
           {tab === 'contracts' && <Contracts {...page} />}
         </main>

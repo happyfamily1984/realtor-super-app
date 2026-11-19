@@ -372,6 +372,14 @@ function ImportSheet({ onClose, onDone, onRegions }: { onClose: () => void; onDo
           <li>단지를 누르거나 매물 목록을 아래로 내리면 화면에 뜨는 매물이 모입니다.</li>
           <li><b>파일로 저장</b>을 누른 뒤, 그 파일을 아래에서 선택합니다.</li>
         </ol>
+        <p className="hint">
+          <b>더 편한 방법 (크롬 확장 프로그램)</b>: 동 이름만 넣으면 그 동으로 이동해 매물을 모으고, 이 앱 창을 열면 자동으로 들어옵니다.{' '}
+          <a href="./collector-extension.zip" download>
+            확장 프로그램 내려받기
+          </a>
+          <br />
+          압축을 푼 뒤 크롬 주소창에 chrome://extensions → 오른쪽 위 ‘개발자 모드’ 켜기 → ‘압축해제된 확장 프로그램을 로드합니다’에서 그 폴더를 선택합니다.
+        </p>
         <button className="btn ghost block-btn" onClick={() => fileInput.current?.click()}>
           수집 파일 선택 (.json)
         </button>

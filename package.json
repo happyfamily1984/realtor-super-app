@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "tsc --noEmit && vite build",
+    "build": "node scripts/zip-extension.mjs && tsc --noEmit && vite build",
     "preview": "vite preview --host"
   },
   "dependencies": {
@@ -19,6 +19,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "jszip": "^3.10.1"
   }
 }
