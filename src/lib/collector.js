@@ -24,7 +24,7 @@
     if (!text || text.length < 2 || text.length > 3000000) return;
     var data; try { data = JSON.parse(text); } catch (e) { return; }
     var n = countItems(data, 0);
-    if (!n) return;
+    if (!n && !/"(cortarNo|legalDivisionNumber)"/.test(text)) return;
     var item = { url: String(url), count: n, data: data };
     if (index[item.url] != null) responses[index[item.url]] = item;
     else if (responses.length < 400) { index[item.url] = responses.length; responses.push(item); }

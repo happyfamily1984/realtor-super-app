@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chips, Confirm, Icon, PageHead, SampleBadge, Sheet, useData } from '../components/ui'
 import type { Deal, Kind, Listing, Trade } from '../data/sample'
 import { api } from '../lib/api'
-import { BOOKMARKLET, mergeListings, parseCollectorFile, type CollectorFile } from '../lib/naverParse'
-import { daysUntil, shortDate, shrinkImage, today, toast, uid, won } from '../lib/util'
+import { BOOKMARKLET, mergeListings, parseCollectorFile, parseRegionNames, type CollectorFile } from '../lib/naverParse'
+import { daysUntil, shortDate, shrinkImage, today, toast, uid, usePersist, won } from '../lib/util'
 
 const DEALS = ['전체', '매매', '전세', '월세'] as const
 const KINDS = ['전체', '아파트', '오피스텔', '빌라', '상가'] as const
@@ -16,6 +16,9 @@ export default function Listings() {
   const [view, setView] = useState<'목록' | '차트'>('목록')
   const { listings, setListings, settings } = useData()
   const [trades, setTrades] = useState<Trade[]>([])
+  const [regionNames, setRegionNames] = usePersist<Record<string, string>>('regionNames', {})
+  const [region, setRegion] = useState('전체')
+  const regionLabel = (code: string) => regionNames[code] ?? (code.endsWith('00000') ? `구 전체(${code.slice(0, 5)})` : `지역 ${code}`)
   const active = useMemo(() => listings.filter((l) => !l.gone), [listings])
   const goneList = useMemo(() => listings.filter((l) => l.gone).sort((a, b) => b.gone!.localeCompare(a.gone!)), [listings])
   const lastCollect = listings.reduce((m, l) => (l.lastSeen && l.lastSeen > m ? l.lastSeen : m), '')
@@ -46,8 +49,8 @@ export default function Listings() {
   const isSample = listings.some((l) => !l.src)
 
   const rows = useMemo(
-    () => active.filter((l) => (deal === '전체' || l.deal === deal) && (kind === '전체' || l.kind === kind)),
-    [deal, kind, active],
+    () => active.filter((l) => (deal === '전체' || l.deal === deal) && (kind === '전체' || l.kind === kind) && (region === '전체' || (l.region && regionLabel(l.region) === region))),
+    [deal, kind, region, active, regionNames],
   )
   // 차트는 가격 단위가 같아야 하므로 한 가지 거래유형 기준
   const chartDeal = deal === '전체' ? '매매' : deal
@@ -60,6 +63,26 @@ export default function Listings() {
     return [...m].map(([name, v]) => ({ name, avg: Math.round(v.reduce((a, b) => a + b, 0) / v.length), n: v.length })).sort((a, b) => b.avg - a.avg)
   }, [chartRows])
   const maxAvg = Math.max(...byComplex.map((c) => c.avg), 1)
+
+  // 동(지역 코드)별 비교: 현재 매물 수, 매매 평균, 마지막 수집에서의 변동
+  const byRegion = useMemo(() => {
+    const m = new Map<string, { n: number; sale: number[]; added: number; changed: number; gone: number }>()
+    for (const l of listings) {
+      if (!l.region) continue
+      const r = m.get(l.region) ?? { n: 0, sale: [], added: 0, changed: 0, gone: 0 }
+      if (l.gone) {
+        if (l.gone === lastCollect) r.gone++
+      } else {
+        r.n++
+        if (l.deal === '매매') r.sale.push(l.price)
+        if (l.newAt === lastCollect) r.added++
+        if (l.changedAt === lastCollect) r.changed++
+      }
+      m.set(l.region, r)
+    }
+    return [...m].map(([code, r]) => ({ code, ...r, avg: r.sale.length ? Math.round(r.sale.reduce((a, b) => a + b, 0) / r.sale.length) : 0 })).sort((a, b) => b.n - a.n)
+  }, [listings, lastCollect])
+  const regionOptions = ['전체', ...new Set(byRegion.filter((r) => r.n).map((r) => regionLabel(r.code)))]
 
   return (
     <>
@@ -98,6 +121,7 @@ export default function Listings() {
       <section className="block filters">
         <Chips options={DEALS} value={deal} onChange={setDeal} />
         <Chips options={KINDS} value={kind} onChange={setKind} />
+        {regionOptions.length > 2 && <Chips options={regionOptions} value={region} onChange={setRegion} />}
       </section>
 
       <section className="block">
@@ -178,6 +202,32 @@ export default function Listings() {
         </section>
       ) : (
         <>
+          {byRegion.length > 0 && (
+            <section className="block">
+              <h2>동별 비교</h2>
+              <div className="card rtable">
+                <div className="rrow head">
+                  <span>지역</span>
+                  <span>매물</span>
+                  <span>매매 평균</span>
+                  <span>신규</span>
+                  <span>변동</span>
+                  <span>사라짐</span>
+                </div>
+                {byRegion.map((r) => (
+                  <div key={r.code} className="rrow">
+                    <span>{regionLabel(r.code)}</span>
+                    <span>{r.n}</span>
+                    <span>{r.avg ? won(r.avg) : '-'}</span>
+                    <span className={r.added ? 'up' : ''}>{r.added}</span>
+                    <span>{r.changed}</span>
+                    <span className={r.gone ? 'down' : ''}>{r.gone}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="hint">신규·변동·사라짐은 마지막 수집에서 확인된 건수입니다.</p>
+            </section>
+          )}
           <section className="block">
             <h2>단지별 평균 {chartDeal === '월세' ? '보증금' : `${chartDeal}가`}</h2>
             {byComplex.length === 0 && <p className="empty">표시할 매물이 없습니다.</p>}
@@ -207,6 +257,7 @@ export default function Listings() {
       {importing && (
         <ImportSheet
           onClose={() => setImporting(false)}
+          onRegions={(names) => setRegionNames((p) => ({ ...p, ...names }))}
           onDone={(items) => {
             const m = mergeListings(listings, items)
             setListings(m.list)
@@ -235,7 +286,7 @@ const DEAL_SET: Deal[] = ['매매', '전세', '월세']
 const KIND_SET: Kind[] = ['아파트', '오피스텔', '빌라', '상가']
 
 /** 매물 화면에서 복사한 글·캡처를 AI 가 표로 정리 */
-function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: (items: Listing[]) => void }) {
+function ImportSheet({ onClose, onDone, onRegions }: { onClose: () => void; onDone: (items: Listing[]) => void; onRegions: (names: Record<string, string>) => void }) {
   const [text, setText] = useState('')
   const [shots, setShots] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
@@ -251,6 +302,7 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: (items:
     } catch {
       return toast('수집기에서 저장한 파일이 아닙니다')
     }
+    onRegions(parseRegionNames(data))
     const items = parseCollectorFile(data)
     if (items.length) return onDone(items)
     if (data.pageText?.trim()) {

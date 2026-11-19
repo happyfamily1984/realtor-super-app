@@ -221,3 +221,9 @@ select { width: 100%; border: 1px solid #cfd4cd; border-radius: 11px; padding: 1
 .list.gone .card { opacity: .6; }
 .notice small + small { margin-top: 2px; }
 .tag.new { margin-left: 4px; }
+.rtable { padding: 4px 12px; }
+.rrow { display: grid; grid-template-columns: 1.6fr .7fr 1.5fr .7fr .7fr .8fr; gap: 4px; padding: 9px 0; font-size: 13.5px; font-variant-numeric: tabular-nums; align-items: center; }
+.rrow + .rrow { border-top: 1px solid var(--line); }
+.rrow span:not(:first-child) { text-align: right; }
+.rrow span:first-child { font-weight: 700; }
+.rrow.head span { color: var(--sub); font-weight: 600; font-size: 12px; }

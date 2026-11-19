@@ -39,6 +39,8 @@ export interface Listing {
   // ── 누적 수집 기록 ──
   key?: string // 같은 매물인지 알아보는 값 (네이버 매물번호 등)
   group?: string // 단지 이름 (동 제외)
+  scope?: 'region' // 동(지역) 전체 목록에서 수집한 매물
+  region?: string // 네이버 지역 코드 = 법정동코드 10자리 (앞 5자리는 시군구)
   firstSeen?: string // 처음 수집한 날
   lastSeen?: string // 마지막으로 확인된 날
   newAt?: string // 이전에 수집한 단지에 새로 나온 날

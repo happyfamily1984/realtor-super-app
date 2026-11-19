@@ -60,6 +60,45 @@ function toDate(v: unknown): string {
   return today()
 }
 
+const REGION_KEYS = ['cortarno', 'legaldivisionnumber', 'legaldivisioncode', 'regioncode']
+const asRegion = (v: unknown) => (/^\d{10}$/.test(String(v ?? '')) ? String(v) : '')
+
+/** 응답 주소에서 지역 코드·단지 번호를 읽는다 */
+function fromUrl(url: string) {
+  let region = ''
+  let complexNo = ''
+  try {
+    const u = new URL(url, 'https://x.invalid')
+    for (const [k, v] of u.searchParams) if (REGION_KEYS.includes(k.toLowerCase())) region = region || asRegion(v)
+    region = region || (/:(\d{10})(?:[/?]|$)/.exec(u.pathname)?.[1] ?? '')
+    complexNo = u.searchParams.get('complexNo') ?? /complex(?:es)?\/(\d+)/.exec(u.pathname)?.[1] ?? ''
+  } catch {
+    /* 주소 형식이 아니면 무시 */
+  }
+  return { region, complexNo }
+}
+
+/** 모든 객체를 한 번씩 방문 */
+function each(d: unknown, fn: (o: Record<string, unknown>) => void, depth = 0) {
+  if (!d || typeof d !== 'object' || depth > 8) return
+  if (Array.isArray(d)) return d.forEach((el) => each(el, fn, depth + 1))
+  fn(d as Record<string, unknown>)
+  Object.values(d).forEach((v) => each(v, fn, depth + 1))
+}
+
+/** 수집 파일에 담긴 지역 이름표 (코드 → "아현동") */
+export function parseRegionNames(file: CollectorFile): Record<string, string> {
+  const names: Record<string, string> = {}
+  ;(file.responses ?? []).forEach((r) =>
+    each(r.data, (o) => {
+      const code = asRegion(o.cortarNo ?? o.legalDivisionNumber)
+      const name = o.cortarName ?? o.legalDivisionName
+      if (code && typeof name === 'string' && name) names[code] = name
+    }),
+  )
+  return names
+}
+
 function toListing(o: Record<string, unknown>): Listing | null {
   const f = flatten(o)
   const deal = toDeal(pick(f, 'tradetypename', 'tradtpnm', 'tradetype', 'tradtpcd', 'tradetypecode'))
@@ -79,6 +118,7 @@ function toListing(o: Record<string, unknown>): Listing | null {
   return {
     key: id ? `id:${id}` : `${complex}|${deal}|${area}|${floor}`,
     group: String(name),
+    region: asRegion(pick(f, ...REGION_KEYS)) || undefined,
     id: uid(),
     complex,
     kind: toKind(pick(f, 'realestatetypename', 'rlettpnm', 'realestatetype', 'rlettpcd', 'realestatetypecode')),
@@ -97,6 +137,17 @@ function toListing(o: Record<string, unknown>): Listing | null {
 /** 수집 파일에서 매물을 찾아 중복 없이 돌려준다 */
 export function parseCollectorFile(file: CollectorFile): Listing[] {
   const found = new Map<string, Listing>()
+  // 단지 → 지역 코드 (단지 목록·단지 정보 응답에서)
+  const complexRegion = new Map<string, string>()
+  ;(file.responses ?? []).forEach((r) =>
+    each(r.data, (o) => {
+      const code = asRegion(o.cortarNo ?? o.legalDivisionNumber)
+      if (!code) return
+      if (o.complexNo) complexRegion.set(`no:${o.complexNo}`, code)
+      if (typeof o.complexName === 'string') complexRegion.set(`nm:${o.complexName}`, code)
+    }),
+  )
+  let ctx = { region: '', complexNo: '' }
   const walk = (d: unknown, depth: number) => {
     if (!d || typeof d !== 'object' || depth > 8) return
     if (Array.isArray(d)) {
@@ -108,6 +159,8 @@ export function parseCollectorFile(file: CollectorFile): Listing[] {
         }
         const l = toListing(el as Record<string, unknown>)
         if (l) {
+          if (ctx.region && !ctx.complexNo) l.scope = 'region'
+          l.region = l.region || ctx.region || complexRegion.get(`no:${ctx.complexNo}`) || complexRegion.get(`nm:${l.group}`) || undefined
           if (!found.has(l.key!)) found.set(l.key!, l)
         } else walk(el, depth + 1)
       }
@@ -115,7 +168,10 @@ export function parseCollectorFile(file: CollectorFile): Listing[] {
     }
     Object.values(d).forEach((v) => walk(v, depth + 1))
   }
-  ;(file.responses ?? []).forEach((r) => walk(r.data, 0))
+  ;(file.responses ?? []).forEach((r) => {
+    ctx = fromUrl(r.url)
+    walk(r.data, 0)
+  })
   return [...found.values()]
 }
 
@@ -134,7 +190,10 @@ export function mergeListings(old: Listing[], incoming: Listing[]): MergeResult 
   const groupOf = (l: Listing) => l.group ?? l.complex
   const byKey = new Map(prev.map((l) => [keyOf(l), l]))
   const knownGroups = new Set(prev.map(groupOf))
+  const knownRegions = new Set(prev.map((l) => l.region))
   const groups = new Set(incoming.map(groupOf))
+  // 동 전체 목록으로 수집한 지역: 그 동의 다른 단지 매물도 사라졌는지 판단할 수 있다
+  const fullRegions = new Set(incoming.filter((l) => l.scope === 'region' && l.region).map((l) => l.region))
   const seen = new Set<string>()
   const list: Listing[] = []
   let added = 0
@@ -147,7 +206,7 @@ export function mergeListings(old: Listing[], incoming: Listing[]): MergeResult 
     const o = byKey.get(k)
     if (!o) {
       added++
-      list.push({ ...n, firstSeen: t, lastSeen: t, newAt: knownGroups.has(groupOf(n)) ? t : undefined })
+      list.push({ ...n, firstSeen: t, lastSeen: t, newAt: knownGroups.has(groupOf(n)) || (n.region && knownRegions.has(n.region)) ? t : undefined })
       continue
     }
     const moved = o.price !== n.price || (o.rent ?? 0) !== (n.rent ?? 0)
@@ -157,7 +216,7 @@ export function mergeListings(old: Listing[], incoming: Listing[]): MergeResult 
   for (const o of prev) {
     if (seen.has(keyOf(o))) continue
     // 이번에 다시 수집한 단지인데 목록에 없으면 사라진 매물
-    if (groups.has(groupOf(o)) && !o.gone) {
+    if ((groups.has(groupOf(o)) || (o.region && fullRegions.has(o.region))) && !o.gone) {
       gone++
       list.push({ ...o, gone: t })
     } else list.push(o)
