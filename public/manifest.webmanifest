@@ -1,0 +1,9 @@
+{
+  "name": "중개사 슈퍼앱",
+  "short_name": "중개사앱",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f5f3",
+  "theme_color": "#0e6b57",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
