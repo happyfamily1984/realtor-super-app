@@ -227,3 +227,5 @@ select { width: 100%; border: 1px solid #cfd4cd; border-radius: 11px; padding: 1
 .rrow span:not(:first-child) { text-align: right; }
 .rrow span:first-child { font-weight: 700; }
 .rrow.head span { color: var(--sub); font-weight: 600; font-size: 12px; }
+.deck { display: flex; flex-direction: column; gap: 10px; }
+.deck img { width: 100%; border-radius: 6px; border: 1px solid var(--line); display: block; }

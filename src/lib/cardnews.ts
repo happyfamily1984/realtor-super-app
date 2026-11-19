@@ -1,53 +1,12 @@
-// 데일리 브리핑 카드뉴스 (1080×1350 PNG) 를 캔버스로 그린다
+// 데일리 브리핑 카드뉴스 (1080×1350 PNG). 디자인 체계는 design.ts 참고.
 import type { News, Trade } from '../data/sample'
-import { daysUntil, koDate, shortDate, today, won } from './util'
+import { C, SERIF, canvas, clip, dateStamp, dotDate, fitText, issueNo, lines, loadFonts, para, parcels, rect, rule, text, width, type Ctx } from './design'
+import { daysUntil, shortDate, won } from './util'
 
 const W = 1080
 const H = 1350
-const BRAND = '#0e6b57'
-const INK = '#17211d'
-const SUB = '#66736d'
-const PAPER = '#f6f4ee'
-const UP = '#d8432e'
-const DOWN = '#1f5fd0'
-const FONT = 'Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif'
-
-type Ctx = CanvasRenderingContext2D
-
-function text(c: Ctx, s: string, x: number, y: number, size: number, color: string, weight = 500, align: CanvasTextAlign = 'left') {
-  c.font = `${weight} ${size}px ${FONT}`
-  c.fillStyle = color
-  c.textAlign = align
-  c.textBaseline = 'alphabetic'
-  c.fillText(s, x, y)
-}
-
-/** 줄바꿈 텍스트. 마지막으로 그린 줄의 y 를 돌려준다 */
-function wrap(c: Ctx, s: string, x: number, y: number, maxW: number, size: number, color: string, weight = 500, lh = 1.4, maxLines = 4) {
-  c.font = `${weight} ${size}px ${FONT}`
-  c.fillStyle = color
-  c.textAlign = 'left'
-  const lines: string[] = []
-  let line = ''
-  for (const ch of s) {
-    if (c.measureText(line + ch).width > maxW && line) {
-      lines.push(line)
-      line = ch.trimStart()
-    } else line += ch
-  }
-  if (line) lines.push(line)
-  const shown = lines.slice(0, maxLines)
-  if (lines.length > maxLines) shown[maxLines - 1] = shown[maxLines - 1].slice(0, -1) + '…'
-  shown.forEach((l, i) => c.fillText(l, x, y + i * size * lh))
-  return y + (shown.length - 1) * size * lh
-}
-
-function rr(c: Ctx, x: number, y: number, w: number, h: number, r: number, fill: string) {
-  c.beginPath()
-  c.roundRect(x, y, w, h, r)
-  c.fillStyle = fill
-  c.fill()
-}
+const M = 84 // 좌우 여백
+const R = W - M
 
 export interface CardInput {
   region: string
@@ -75,149 +34,174 @@ export function briefingComment(trades: Trade[]) {
   return `최근 30일 매매 ${week.length}건, 평균 ${won(avg)}. 직전 거래 대비 상승 ${up}건·하락 ${down}건으로 ${mood}. 최고가는 ${top.complex} ${top.area}㎡ ${won(top.price)}.`
 }
 
-function frame(title: string, page: number, total: number, inp: CardInput) {
-  const cv = document.createElement('canvas')
-  cv.width = W
-  cv.height = H
-  const c = cv.getContext('2d')!
-  c.fillStyle = PAPER
-  c.fillRect(0, 0, W, H)
-  c.fillStyle = BRAND
-  c.fillRect(0, 0, W, 16)
-  text(c, `${inp.region} 데일리 브리핑`, 72, 110, 30, BRAND, 700)
-  text(c, `${page} / ${total}`, W - 72, 110, 28, SUB, 600, 'right')
-  text(c, title, 72, 200, 68, INK, 800)
-  footer(c, inp, SUB)
+const sourceLine = (inp: CardInput) => (inp.sample ? '샘플 데이터 (실제 시세 아님)' : '자료 국토교통부 실거래가 공개시스템')
+
+// ── 표지 ─────────────────────────────────────────
+function cover(inp: CardInput, total: number) {
+  const { cv, c } = canvas(W, H)
+  const bandY = 930
+  parcels(c, 0, 0, W, bandY, C.indigo, 0.07, 11)
+  // 제목 뒤는 무늬를 비워 글자가 또렷하게
+  const g = c.createLinearGradient(0, 0, W * 0.8, 0)
+  g.addColorStop(0, 'rgba(255,255,255,1)')
+  g.addColorStop(0.72, 'rgba(255,255,255,.86)')
+  g.addColorStop(1, 'rgba(255,255,255,0)')
+  c.fillStyle = g
+  c.fillRect(0, 330, W, bandY - 330)
+
+  rect(c, M, 84, 8, 44, C.indigo)
+  text(c, `제 ${issueNo()} 호`, M + 26, 118, { size: 30, weight: 600, color: C.indigo })
+  dateStamp(c, R - 138, 236, 150, inp.region.split(' ')[0] || inp.region, dotDate(), '데일리 브리핑')
+
+  fitText(c, inp.region, M, 560, W - M * 2, { size: 124, weight: 900, font: SERIF, color: C.indigo }, 64)
+  text(c, '부동산', M, 696, { size: 92, weight: 700, font: SERIF, color: C.ink })
+  text(c, '데일리 브리핑', M, 816, { size: 92, weight: 700, font: SERIF, color: C.ink })
+
+  // 아래 띠: 오늘의 숫자 세 가지
+  rect(c, 0, bandY, W, H - bandY, C.indigo)
+  const s = tradeStats(inp.trades)
+  const cols: [string, string][] = [
+    ['최근 30일 매매', `${s.week.length}건`],
+    ['평균 거래가', s.week.length ? won(s.avg) : '-'],
+    ['상승 / 하락', `${s.up} / ${s.down}`],
+  ]
+  const cw = (W - M * 2) / 3
+  // 세 숫자를 같은 크기로: 가장 긴 값이 들어가는 크기에 맞춘다
+  let vs = 68
+  while (vs > 40 && cols.some(([, v]) => width(c, v, { size: vs, weight: 800 }) > cw - 50)) vs -= 2
+  cols.forEach(([k, v], i) => {
+    const x = M + cw * i + (i ? 34 : 0)
+    if (i) rect(c, M + cw * i, bandY + 70, 1, 150, 'rgba(255,255,255,.28)')
+    text(c, k, x, bandY + 104, { size: 27, weight: 500, color: '#fff', alpha: 0.72 })
+    text(c, v, x, bandY + 190, { size: vs, weight: 800, color: '#fff' })
+  })
+  rule(c, M, R, H - 112, 'rgba(255,255,255,.28)')
+  text(c, inp.office, M, H - 62, { size: 28, weight: 700, color: '#fff' })
+  text(c, sourceLine(inp), R - 70, H - 62, { size: 22, weight: 500, color: '#fff', align: 'right', alpha: 0.7 })
+  text(c, `1/${total}`, R, H - 62, { size: 24, weight: 700, color: '#fff', align: 'right' })
+  return cv
+}
+
+// ── 속지 공통 틀 ─────────────────────────────────
+function page(title: string, no: number, total: number, inp: CardInput, note?: string) {
+  const { cv, c } = canvas(W, H)
+  text(c, `${inp.region} 데일리 브리핑`, M, 104, { size: 26, weight: 600, color: C.sub })
+  text(c, dotDate(), R, 104, { size: 26, weight: 600, color: C.sub, align: 'right' })
+  rule(c, M, R, 132, C.ink, 4)
+  text(c, title, M, 236, { size: 72, weight: 900, font: SERIF, color: C.ink })
+  if (note) text(c, note, R, 232, { size: 24, weight: 500, color: C.sub, align: 'right' })
+  // 꼬리말
+  rule(c, M, R, H - 118, C.line, 2)
+  rect(c, M, H - 86, 16, 16, C.seal)
+  text(c, inp.office, M + 30, H - 68, { size: 26, weight: 700, color: C.ink })
+  const pg = `${no}/${total}`
+  text(c, pg, R, H - 68, { size: 24, weight: 700, color: C.ink, align: 'right' })
+  text(c, sourceLine(inp), R - width(c, pg, { size: 24, weight: 700 }) - 22, H - 68, { size: 22, weight: 500, color: C.sub, align: 'right' })
   return { cv, c }
 }
 
-function footer(c: Ctx, inp: CardInput, color: string) {
-  text(c, inp.office, 72, H - 64, 30, color, 700)
-  text(c, inp.sample ? '※ 샘플 데이터 (실제 시세 아님)' : `자료: 국토교통부 실거래가 · ${shortDate(today())} 기준`, W - 72, H - 64, 26, color, 500, 'right')
+function diffText(c: Ctx, t: Trade, x: number, y: number, size: number) {
+  if (!t.prev) return text(c, '직전 거래 없음', x, y, { size: size - 2, weight: 500, color: C.sub, align: 'right' })
+  const d = t.price - t.prev
+  if (d === 0) return text(c, '보합', x, y, { size, weight: 700, color: C.sub, align: 'right' })
+  text(c, `${d > 0 ? '▲' : '▼'} ${won(Math.abs(d))}`, x, y, { size, weight: 700, color: d > 0 ? C.seal : C.down, align: 'right' })
 }
 
-function cover(inp: CardInput, total: number) {
-  const cv = document.createElement('canvas')
-  cv.width = W
-  cv.height = H
-  const c = cv.getContext('2d')!
-  c.fillStyle = BRAND
-  c.fillRect(0, 0, W, H)
-  // 장식: 지붕 모양
-  c.globalAlpha = 0.09
-  c.fillStyle = '#fff'
-  c.beginPath()
-  c.moveTo(W - 520, H)
-  c.lineTo(W - 520, 760)
-  c.lineTo(W - 180, 470)
-  c.lineTo(W + 160, 760)
-  c.lineTo(W + 160, H)
-  c.fill()
-  c.globalAlpha = 1
-
-  rr(c, 72, 96, 300, 60, 30, 'rgba(255,255,255,.16)')
-  text(c, koDate(today()), 222, 137, 28, '#fff', 600, 'center')
-  text(c, inp.region, 72, 330, 84, '#ffd9a8', 800)
-  text(c, '부동산', 72, 450, 104, '#fff', 800)
-  text(c, '데일리 브리핑', 72, 575, 104, '#fff', 800)
-
-  const s = tradeStats(inp.trades)
-  const items: [string, string][] = [
-    ['최근 30일 매매', `${s.week.length}건`],
-    ['평균 거래가', won(s.avg)],
-    ['상승 / 하락', `${s.up} / ${s.down}`],
-  ]
-  items.forEach(([k, v], i) => {
-    const y = 760 + i * 130
-    rr(c, 72, y, 600, 108, 20, 'rgba(255,255,255,.12)')
-    text(c, k, 104, y + 67, 32, 'rgba(255,255,255,.8)', 500)
-    text(c, v, 640, y + 70, 44, '#fff', 800, 'right')
-  })
-  footer(c, inp, 'rgba(255,255,255,.85)')
-  text(c, `1 / ${total}`, W - 72, 137, 28, 'rgba(255,255,255,.7)', 600, 'right')
-  return cv
-}
-
-function tradesCard(inp: CardInput, page: number, total: number) {
-  const { cv, c } = frame('최근 실거래', page, total, inp)
-  const rows = [...inp.trades].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6)
+// ── 최근 실거래: 표 ──────────────────────────────
+function tradesCard(inp: CardInput, no: number, total: number) {
+  const { cv, c } = page('최근 실거래', no, total, inp, '아파트 매매, 단위 원')
+  const rows = [...inp.trades].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7)
+  const top = 296
+  const head = { size: 22, weight: 600, color: C.sub }
+  text(c, '단지', M, top, head)
+  text(c, '계약일', 640, top, { ...head, align: 'right' })
+  text(c, '거래가', R, top, { ...head, align: 'right' })
+  rule(c, M, R, top + 20, C.ink, 2)
+  const rh = 128
   rows.forEach((t, i) => {
-    const y = 270 + i * 152
-    rr(c, 72, y, W - 144, 132, 22, '#fff')
-    text(c, t.complex, 108, y + 58, 38, INK, 700)
-    text(c, `전용 ${t.area}㎡ · ${t.floor}층 · ${shortDate(t.date)}`, 108, y + 102, 27, SUB, 500)
-    text(c, won(t.price), W - 108, y + 60, 44, INK, 800, 'right')
-    if (t.prev) {
-      const d = t.price - t.prev
-      const col = d > 0 ? UP : d < 0 ? DOWN : SUB
-      const s = d === 0 ? '직전가와 동일' : `${d > 0 ? '▲' : '▼'} ${won(Math.abs(d))}`
-      text(c, s, W - 108, y + 104, 27, col, 700, 'right')
-    }
+    const y = top + 20 + rh * i
+    const name = { size: 38, weight: 700, color: C.ink }
+    text(c, clip(c, t.complex, 440, name), M, y + 58, name)
+    text(c, `전용 ${t.area}㎡   ${t.floor}층`, M, y + 100, { size: 25, weight: 500, color: C.sub })
+    text(c, shortDate(t.date), 640, y + 58, { size: 28, weight: 600, color: C.sub, align: 'right' })
+    text(c, won(t.price), R, y + 60, { size: 44, weight: 800, color: C.ink, align: 'right' })
+    diffText(c, t, R, y + 102, 26)
+    if (i < rows.length - 1) rule(c, M, R, y + rh, C.line, 2)
   })
+  if (!rows.length) text(c, '최근 신고된 매매 실거래가 없습니다.', M, top + 110, { size: 32, color: C.sub })
   return cv
 }
 
-function complexCard(inp: CardInput, page: number, total: number) {
-  const { cv, c } = frame('단지별 평균 거래가', page, total, inp)
+// ── 단지별 평균: 막대 ────────────────────────────
+function complexCard(inp: CardInput, no: number, total: number) {
+  const { cv, c } = page('단지별 평균 거래가', no, total, inp, '최근 매매 실거래 기준')
   const map = new Map<string, number[]>()
   inp.trades.forEach((t) => map.set(t.complex, [...(map.get(t.complex) ?? []), t.price]))
   const rows = [...map]
     .map(([name, v]) => ({ name, avg: Math.round(v.reduce((a, b) => a + b, 0) / v.length), n: v.length }))
     .sort((a, b) => b.avg - a.avg)
-    .slice(0, 6)
+    .slice(0, 7)
   const max = Math.max(...rows.map((r) => r.avg), 1)
-  text(c, '최근 매매 실거래 기준', 72, 262, 28, SUB, 500)
+  const top = 300
+  const rh = Math.min(176, Math.floor((H - 150 - top) / Math.max(rows.length, 1))) // 줄 수에 맞춰 간격을 넓힌다
   rows.forEach((r, i) => {
-    const y = 330 + i * 150
-    text(c, r.name, 72, y + 34, 36, INK, 700)
-    text(c, `${r.n}건`, W - 72, y + 34, 28, SUB, 500, 'right')
-    rr(c, 72, y + 56, W - 144, 46, 12, '#e6e3d9')
-    const w = Math.max(160, ((W - 144) * r.avg) / max)
-    rr(c, 72, y + 56, w, 46, 12, i === 0 ? '#ff7a3d' : BRAND)
-    text(c, won(r.avg), 72 + w - 18, y + 90, 28, '#fff', 800, 'right')
+    const y = top + rh * i
+    const name = { size: 36, weight: 700, color: C.ink }
+    text(c, clip(c, r.name, 560, name), M, y + 44, name)
+    text(c, `${r.n}건`, M + width(c, clip(c, r.name, 560, name), name) + 18, y + 44, { size: 24, weight: 500, color: C.sub })
+    text(c, won(r.avg), R, y + 46, { size: 40, weight: 800, color: C.ink, align: 'right' })
+    rect(c, M, y + 72, W - M * 2, 18, C.mist)
+    rect(c, M, y + 72, Math.max(24, ((W - M * 2) * r.avg) / max), 18, C.indigo)
+  })
+  if (!rows.length) text(c, '표시할 실거래가 없습니다.', M, top + 80, { size: 32, color: C.sub })
+  return cv
+}
+
+// ── 시장 읽기 (AI 요약) ──────────────────────────
+function insightCard(inp: CardInput, no: number, total: number) {
+  const { cv, c } = page('오늘의 시장 읽기', no, total, inp, 'AI가 공개 자료를 요약한 참고용 내용')
+  const ins = { comment: inp.insight!.comment.replace(/㎡/g, 'm²'), points: inp.insight!.points }
+  const quote = { size: 46, weight: 700, font: SERIF, color: C.ink, lh: 1.62, maxLines: 7 }
+  const n = Math.min(7, lines(c, ins.comment, W - M * 2 - 44, quote).length)
+  rect(c, M, 316, 8, n * 46 * 1.62 - 10, C.indigo)
+  let y = para(c, ins.comment, M + 44, 360, W - M * 2 - 44, quote) + 96
+  rule(c, M, R, y - 40, C.ink, 2)
+  ins.points.slice(0, 3).forEach((p, i, arr) => {
+    rect(c, M, y + 6, 16, 16, C.seal)
+    const end = para(c, p, M + 44, y + 28, W - M * 2 - 44, { size: 36, weight: 600, color: C.ink, lh: 1.42, maxLines: 2 })
+    y = end + 52
+    if (i < arr.length - 1) rule(c, M, R, y - 12, C.line, 2)
+    y += 34
   })
   return cv
 }
 
-function newsCard(inp: CardInput, page: number, total: number) {
-  const { cv, c } = frame('오늘의 부동산 뉴스', page, total, inp)
-  let y = 280
-  inp.news.slice(0, 3).forEach((n, i) => {
-    rr(c, 72, y, W - 144, 290, 24, '#fff')
-    rr(c, 104, y + 34, 56, 56, 28, BRAND)
-    text(c, String(i + 1), 132, y + 74, 30, '#fff', 800, 'center')
-    text(c, `${n.source} · ${shortDate(n.date)}`, 180, y + 72, 26, SUB, 500)
-    const ty = wrap(c, n.title, 104, y + 140, W - 208, 38, INK, 700, 1.32, 2)
-    wrap(c, n.summary, 104, ty + 52, W - 208, 28, SUB, 500, 1.4, 2)
-    y += 314
-  })
-  return cv
-}
-
-function insightCard(inp: CardInput, page: number, total: number) {
-  const { cv, c } = frame('AI 시장 분석', page, total, inp)
-  const ins = inp.insight!
-  rr(c, 72, 270, W - 144, 330, 24, BRAND)
-  wrap(c, ins.comment, 112, 345, W - 224, 36, '#fff', 600, 1.5, 5)
-  let y = 650
-  ins.points.slice(0, 3).forEach((p, i) => {
-    rr(c, 72, y, W - 144, 150, 22, '#fff')
-    rr(c, 104, y + 47, 56, 56, 28, '#ff7a3d')
-    text(c, String(i + 1), 132, y + 87, 30, '#fff', 800, 'center')
-    wrap(c, p, 188, y + (c.measureText(p).width > 600 ? 68 : 88), W - 300, 34, INK, 700, 1.35, 2)
-    y += 170
-  })
-  text(c, '※ AI가 공개 자료를 요약한 참고용 내용입니다', 72, H - 120, 24, SUB, 500)
+// ── 뉴스 ─────────────────────────────────────────
+function newsCard(inp: CardInput, no: number, total: number) {
+  const { cv, c } = page('부동산 뉴스', no, total, inp)
+  const limit = H - 150
+  let y = 300
+  for (const [i, raw] of inp.news.slice(0, 4).entries()) {
+    const n = { ...raw, title: raw.title.replace(/㎡/g, 'm²') }
+    const title = { size: 40, weight: 700, font: SERIF, color: C.ink, lh: 1.4, maxLines: 2 }
+    const sum = { size: 27, weight: 500, color: C.sub, lh: 1.5, maxLines: 2 }
+    const need = 40 + lines(c, n.title, W - M * 2, title).slice(0, 2).length * 56 + (n.summary ? lines(c, n.summary, W - M * 2, sum).slice(0, 2).length * 41 + 16 : 0) + 40
+    if (y + need > limit) break
+    if (i) rule(c, M, R, y - 34, C.line, 2)
+    text(c, n.source, M, y, { size: 24, weight: 700, color: C.indigo })
+    text(c, shortDate(n.date), M + width(c, n.source, { size: 24, weight: 700 }) + 18, y, { size: 24, weight: 500, color: C.sub })
+    let end = para(c, n.title, M, y + 58, W - M * 2, title)
+    if (n.summary) end = para(c, n.summary, M, end + 54, W - M * 2, sum)
+    y = end + 92
+  }
   return cv
 }
 
 /** 카드뉴스를 PNG dataURL 로 (AI 분석이 있으면 5장, 없으면 4장) */
 export async function renderCards(inp: CardInput): Promise<string[]> {
-  try {
-    await Promise.all([document.fonts.load(`800 40px Pretendard`), document.fonts.load(`500 40px Pretendard`)])
-  } catch {
-    /* 폰트 로드 실패 시 시스템 글꼴 사용 */
-  }
+  await loadFonts(
+    [inp.region, inp.office, inp.insight?.comment ?? '', ...inp.news.slice(0, 4).map((n) => n.title), '최근실거래단지별평균거래가오늘의시장읽기부동산뉴스'].join(''),
+  )
   const total = inp.insight ? 5 : 4
   const cards = [cover(inp, total), tradesCard(inp, 2, total), complexCard(inp, 3, total)]
   if (inp.insight) cards.push(insightCard(inp, 4, total))

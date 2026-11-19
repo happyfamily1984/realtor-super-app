@@ -3,8 +3,8 @@ import { Chips, Confirm, Field, Icon, PageHead, Sheet, useData, type PageProps }
 import { type Consult, type Deal, type Kind } from '../data/sample'
 import { recommend } from '../lib/match'
 import { useBackLayer } from '../lib/nav'
-import { makeBriefingPpt } from '../lib/ppt'
-import { koDate, shortDate, today, toast, uid, won } from '../lib/util'
+import { renderProposal, saveProposalPptx } from '../lib/proposal'
+import { downloadDataUrl, koDate, shortDate, today, toast, uid, won } from '../lib/util'
 import { listingPrice } from './Listings'
 
 const DEALS: Deal[] = ['매매', '전세', '월세']
@@ -84,7 +84,7 @@ export default function ConsultPage({ intent, clearIntent }: PageProps) {
           onClose={() => setDetailId(null)}
           footer={
             <button className="btn block-btn" onClick={() => setRecoId(detail.id)}>
-              맞춤 매물 추천 · PPT 만들기
+              맞춤 매물 추천 · 제안서 만들기
             </button>
           }
         >
@@ -178,6 +178,7 @@ function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void
   const matches = useMemo(() => recommend(consult, listings.filter((l) => !l.gone)), [consult, listings])
   const [picked, setPicked] = useState<Set<string>>(() => new Set(matches.slice(0, 3).map((m) => m.listing.id)))
   const [busy, setBusy] = useState(false)
+  const [pages, setPages] = useState<string[] | null>(null)
   // 선택 모드: 뒤로가기를 누르면 창을 닫기 전에 선택부터 해제
   useBackLayer(picked.size > 0, () => setPicked(new Set()))
 
@@ -190,10 +191,9 @@ function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void
   const ppt = async () => {
     setBusy(true)
     try {
-      await makeBriefingPpt(consult, matches.filter((m) => picked.has(m.listing.id)), settings)
-      toast('PPT 파일을 저장했습니다')
+      setPages(await renderProposal(consult, matches.filter((m) => picked.has(m.listing.id)), settings))
     } catch {
-      toast('PPT 생성에 실패했습니다')
+      toast('제안서를 만들지 못했습니다')
     } finally {
       setBusy(false)
     }
@@ -205,7 +205,7 @@ function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void
       onClose={onClose}
       footer={
         <button className="btn block-btn" disabled={!picked.size || busy} onClick={ppt}>
-          {busy ? '만드는 중…' : picked.size ? `선택한 ${picked.size}건으로 PPT 만들기` : '매물을 선택하세요'}
+          {busy ? '만드는 중…' : picked.size ? `선택한 ${picked.size}건으로 제안서 만들기` : '매물을 선택하세요'}
         </button>
       }
     >
@@ -240,6 +240,45 @@ function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void
           )
         })}
       </ul>
+      {pages && (
+        <Sheet
+          title="제안서 미리보기"
+          onClose={() => setPages(null)}
+          footer={
+            <div className="row">
+              <button
+                className="btn ghost"
+                onClick={() => {
+                  pages.forEach((p, i) => setTimeout(() => downloadDataUrl(p, `${consult.name}님_제안서_${i + 1}.png`), i * 250))
+                  toast(`이미지 ${pages.length}장을 저장합니다`)
+                }}
+              >
+                이미지로 저장
+              </button>
+              <button
+                className="btn"
+                onClick={async () => {
+                  try {
+                    await saveProposalPptx(pages, consult.name)
+                    toast('PPT 파일을 저장했습니다')
+                  } catch {
+                    toast('PPT 저장에 실패했습니다')
+                  }
+                }}
+              >
+                PPT로 저장
+              </button>
+            </div>
+          }
+        >
+          <p className="hint">총 {pages.length}장입니다. 카카오톡으로 보낼 때는 이미지, 화면에 띄워 설명할 때는 PPT가 편합니다.</p>
+          <div className="deck">
+            {pages.map((p, i) => (
+              <img key={i} src={p} alt={`제안서 ${i + 1}쪽`} />
+            ))}
+          </div>
+        </Sheet>
+      )}
     </Sheet>
   )
 }
