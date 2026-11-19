@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Chips, Confirm, Field, Icon, PageHead, Sheet, useData, type PageProps } from '../components/ui'
-import { LISTINGS, type Consult, type Deal, type Kind } from '../data/sample'
+import { type Consult, type Deal, type Kind } from '../data/sample'
 import { recommend } from '../lib/match'
 import { useBackLayer } from '../lib/nav'
 import { makeBriefingPpt } from '../lib/ppt'
@@ -174,8 +174,8 @@ export default function ConsultPage({ intent, clearIntent }: PageProps) {
 }
 
 function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void }) {
-  const { settings } = useData()
-  const matches = useMemo(() => recommend(consult, LISTINGS), [consult])
+  const { settings, listings } = useData()
+  const matches = useMemo(() => recommend(consult, listings), [consult, listings])
   const [picked, setPicked] = useState<Set<string>>(() => new Set(matches.slice(0, 3).map((m) => m.listing.id)))
   const [busy, setBusy] = useState(false)
   // 선택 모드: 뒤로가기를 누르면 창을 닫기 전에 선택부터 해제

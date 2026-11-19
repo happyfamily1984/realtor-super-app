@@ -1,0 +1,5 @@
+{
+  "framework": "vite",
+  "regions": ["icn1"],
+  "functions": { "api/*.ts": { "maxDuration": 60 } }
+}

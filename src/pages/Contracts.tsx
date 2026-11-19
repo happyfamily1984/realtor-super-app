@@ -1,12 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
 import { Chips, Confirm, Field, Icon, PageHead, Sheet, useData, type PageProps } from '../components/ui'
 import type { Contract, Deal } from '../data/sample'
+import { api } from '../lib/api'
 import { upcoming, type Schedule } from '../lib/match'
 import { useBackLayer } from '../lib/nav'
-import { dday, koDate, photoDel, photoGet, photoPut, shrinkImage, today, toast, uid, won } from '../lib/util'
+import { dday, koDate, photoDel, photoGet, photoPut, shrinkImage, shrinkSrc, today, toast, uid, won } from '../lib/util'
 
 const DEALS: Deal[] = ['매매', '전세', '월세']
 const VIEWS = ['일정', '진행중', '완료'] as const
+
+interface ContractAI {
+  title: string
+  deal: string
+  client: string
+  price: number
+  contractDate: string
+  midDate: string
+  midAmount: number
+  balanceDate: string
+  balanceAmount: number
+  monthlyRent: number
+  special: string[]
+  summary: string
+  checks: string[]
+}
+const isDate = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
 
 const blank = (): Contract => ({ id: '', title: '', deal: '매매', client: '', price: 0, contractDate: today(), midDate: '', midAmount: 0, balanceDate: '', balanceAmount: 0, memo: '', status: '진행중', photos: [] })
 
@@ -27,6 +45,8 @@ export default function Contracts({ intent, clearIntent }: PageProps) {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [delId, setDelId] = useState<string | null>(null)
   const [perm, setPerm] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'))
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiResult, setAiResult] = useState<{ id: string; r: ContractAI } | null>(null)
   const events = upcoming(contracts)
   const detail = contracts.find((c) => c.id === detailId)
 
@@ -66,6 +86,39 @@ export default function Contracts({ intent, clearIntent }: PageProps) {
     }
     patch(c.id, { photos: [...c.photos, ...ids] })
     toast(`계약서 사진 ${ids.length}장을 보관했습니다`)
+  }
+
+  const analyze = async (c: Contract) => {
+    if (!c.photos.length) return toast('계약서 사진을 먼저 첨부해 주세요')
+    setAiBusy(true)
+    try {
+      const raw = (await Promise.all(c.photos.slice(0, 4).map((id) => photoGet(id)))).filter((x): x is string => !!x)
+      const images = await Promise.all(raw.map((d) => shrinkSrc(d, 1400, 0.72))) // 전송 용량 줄이기
+      const r = await api<ContractAI>('ai', { task: 'contract', images })
+      setAiResult({ id: c.id, r: { ...r, special: (r.special ?? []).map(String), checks: (r.checks ?? []).map(String) } })
+    } catch (e) {
+      toast((e as Error).message)
+    } finally {
+      setAiBusy(false)
+    }
+  }
+  /** AI 가 읽은 값 중 비어 있지 않은 것만 계약 정보에 반영 */
+  const applyAi = () => {
+    if (!aiResult) return
+    const { r } = aiResult
+    const v: Partial<Contract> = { ai: { summary: r.summary ?? '', special: r.special, checks: r.checks } }
+    if (r.title) v.title = r.title
+    if (r.client) v.client = r.client
+    if (DEALS.includes(r.deal as Deal)) v.deal = r.deal as Deal
+    if (r.price > 0) v.price = r.price
+    if (isDate(r.contractDate)) v.contractDate = r.contractDate
+    if (isDate(r.midDate)) v.midDate = r.midDate
+    if (r.midAmount > 0) v.midAmount = r.midAmount
+    if (isDate(r.balanceDate)) v.balanceDate = r.balanceDate
+    if (r.balanceAmount > 0) v.balanceAmount = r.balanceAmount
+    patch(aiResult.id, v)
+    setAiResult(null)
+    toast('계약 정보에 반영했습니다')
   }
 
   const list = contracts.filter((c) => c.status === view)
@@ -183,9 +236,27 @@ export default function Contracts({ intent, clearIntent }: PageProps) {
               patch(detail.id, { photos: detail.photos.filter((p) => p !== id) })
             }}
           />
-          <button className="btn ghost block-btn" onClick={() => toast('AI 계약서 분석은 서버 연동 후 사용할 수 있습니다')}>
-            AI 로 계약 내용 정리 <span className="badge">연동 예정</span>
+          <button className="btn ghost block-btn" disabled={aiBusy} onClick={() => analyze(detail)}>
+            {aiBusy ? 'AI가 계약서를 읽는 중…' : 'AI로 계약 내용 정리'}
           </button>
+          {detail.ai && (
+            <div className="ai-box">
+              <span className="tag score">AI 정리</span>
+              <p>{detail.ai.summary}</p>
+              {detail.ai.special.length > 0 && <b>특약사항</b>}
+              <ul>
+                {detail.ai.special.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ul>
+              {detail.ai.checks.length > 0 && <b>확인할 사항</b>}
+              <ul>
+                {detail.ai.checks.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="row">
             <button className="btn ghost" onClick={() => setForm(detail)}>
@@ -194,6 +265,52 @@ export default function Contracts({ intent, clearIntent }: PageProps) {
             <button className="btn ghost danger" onClick={() => setDelId(detail.id)}>
               삭제
             </button>
+          </div>
+        </Sheet>
+      )}
+
+      {aiResult && (
+        <Sheet
+          title="AI가 읽은 계약 내용"
+          onClose={() => setAiResult(null)}
+          footer={
+            <button className="btn block-btn" onClick={applyAi}>
+              계약 정보에 반영
+            </button>
+          }
+        >
+          <p className="hint">원본 계약서와 반드시 대조해 주세요. 비어 있는 항목은 기존 값을 그대로 둡니다.</p>
+          <dl className="dl">
+            <dt>물건</dt>
+            <dd>{aiResult.r.title || '-'}</dd>
+            <dt>거래</dt>
+            <dd>
+              {aiResult.r.deal || '-'} · {aiResult.r.price ? won(aiResult.r.price) : '-'}
+              {aiResult.r.monthlyRent ? ` / 월 ${aiResult.r.monthlyRent}만` : ''}
+            </dd>
+            <dt>당사자</dt>
+            <dd>{aiResult.r.client || '-'}</dd>
+            <dt>계약일</dt>
+            <dd>{isDate(aiResult.r.contractDate) ? koDate(aiResult.r.contractDate) : '-'}</dd>
+            <dt>중도금</dt>
+            <dd>{isDate(aiResult.r.midDate) ? `${koDate(aiResult.r.midDate)} · ${won(aiResult.r.midAmount)}` : '-'}</dd>
+            <dt>잔금</dt>
+            <dd>{isDate(aiResult.r.balanceDate) ? `${koDate(aiResult.r.balanceDate)} · ${won(aiResult.r.balanceAmount)}` : '-'}</dd>
+          </dl>
+          <div className="ai-box">
+            <p>{aiResult.r.summary}</p>
+            {aiResult.r.special.length > 0 && <b>특약사항</b>}
+            <ul>
+              {aiResult.r.special.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ul>
+            {aiResult.r.checks.length > 0 && <b>확인할 사항</b>}
+            <ul>
+              {aiResult.r.checks.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ul>
           </div>
         </Sheet>
       )}

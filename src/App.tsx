@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Confirm, DataCtx, Icon, type Intent, type Tab } from './components/ui'
-import { DEFAULT_SETTINGS, SAMPLE_CONSULTS, SAMPLE_CONTRACTS, type Consult, type Contract, type Settings } from './data/sample'
+import { DEFAULT_SETTINGS, LISTINGS, SAMPLE_CONSULTS, SAMPLE_CONTRACTS, type Consult, type Contract, type Listing, type Settings } from './data/sample'
 import { exitApp, initNav, stayInApp, useBackLayer } from './lib/nav'
 import { usePersist } from './lib/util'
 import Briefing from './pages/Briefing'
@@ -18,7 +18,9 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 export default function App() {
-  const [settings, setSettings] = usePersist<Settings>('settings', DEFAULT_SETTINGS)
+  const [saved, setSettings] = usePersist<Settings>('settings', DEFAULT_SETTINGS)
+  const settings = useMemo(() => ({ ...DEFAULT_SETTINGS, ...saved }), [saved]) // 예전 저장값에 새 항목 보충
+  const [listings, setListings] = usePersist<Listing[]>('listings', LISTINGS)
   const [consults, setConsults] = usePersist<Consult[]>('consults', SAMPLE_CONSULTS)
   const [contracts, setContracts] = usePersist<Contract[]>('contracts', SAMPLE_CONTRACTS)
   const [tab, setTab] = useState<Tab>('home')
@@ -59,7 +61,7 @@ export default function App() {
     )
 
   return (
-    <DataCtx.Provider value={{ settings, setSettings, consults, setConsults, contracts, setContracts }}>
+    <DataCtx.Provider value={{ settings, setSettings, consults, setConsults, contracts, setContracts, listings, setListings }}>
       <div className="app">
         <main>
           {tab === 'home' && <Home go={go} />}

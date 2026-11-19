@@ -12,6 +12,7 @@ export interface Trade {
   floor: number
   price: number // 만원
   prev?: number // 직전 동일면적 거래가(만원)
+  dong?: string
   date: string
 }
 export interface News {
@@ -20,6 +21,7 @@ export interface News {
   source: string
   date: string
   summary: string
+  link?: string
 }
 export interface Listing {
   id: string
@@ -33,6 +35,7 @@ export interface Listing {
   dir: string
   desc: string
   date: string
+  src?: 'import' // 직접 가져온 매물 (없으면 샘플)
 }
 export interface Consult {
   id: string
@@ -61,13 +64,17 @@ export interface Contract {
   memo: string
   status: '진행중' | '완료'
   photos: string[] // IndexedDB 사진 id
+  ai?: { summary: string; special: string[]; checks: string[] } // AI 계약서 분석 결과
 }
 export interface Settings {
   office: string
-  region: string
+  region: string // 화면·카드뉴스에 표시할 지역 이름
+  lawdCd: string // 실거래 조회용 시군구 코드 5자리
+  dong: string // 동 이름 (비우면 시군구 전체)
+  passcode: string // 서버 접속 암호 (APP_PASSCODE 를 설정한 경우)
 }
 
-export const DEFAULT_SETTINGS: Settings = { office: '우리 공인중개사사무소', region: '마포구 아현동' }
+export const DEFAULT_SETTINGS: Settings = { office: '우리 공인중개사사무소', region: '마포구 아현동', lawdCd: '11440', dong: '아현동', passcode: '' }
 
 export const TRADES: Trade[] = [
   { id: 't1', complex: '아현 숲마을', area: 84, floor: 12, price: 172000, prev: 168500, date: dayOffset(-1) },
@@ -143,4 +150,13 @@ export const SAMPLE_CONTRACTS: Contract[] = [
   { id: 'k2', title: '마포 리버뷰 201동 702호', deal: '전세', client: '임차 한지우 / 임대 오세진', price: 78000, contractDate: dayOffset(-10), midDate: '', midAmount: 0, balanceDate: dayOffset(6), balanceAmount: 70200, memo: '잔금일 전입신고·확정일자 안내', status: '진행중', photos: [] },
   { id: 'k3', title: '공덕 해오름 105동 1801호', deal: '매매', client: '매수 윤가람 / 매도 서민재', price: 181500, contractDate: dayOffset(5), midDate: dayOffset(35), midAmount: 60000, balanceDate: dayOffset(75), balanceAmount: 103350, memo: '계약 예정 (가계약금 입금 완료)', status: '진행중', photos: [] },
   { id: 'k4', title: '아현 스테이 1105호', deal: '월세', client: '임차 박준형 / 임대 김도현', price: 1000, contractDate: dayOffset(-45), midDate: '', midAmount: 0, balanceDate: dayOffset(-15), balanceAmount: 900, memo: '', status: '완료', photos: [] },
+]
+
+/** 서울 시군구 코드 (그 외 지역은 설정에서 5자리 코드를 직접 입력) */
+export const SEOUL_GU: [string, string][] = [
+  ['종로구', '11110'], ['중구', '11140'], ['용산구', '11170'], ['성동구', '11200'], ['광진구', '11215'],
+  ['동대문구', '11230'], ['중랑구', '11260'], ['성북구', '11290'], ['강북구', '11305'], ['도봉구', '11320'],
+  ['노원구', '11350'], ['은평구', '11380'], ['서대문구', '11410'], ['마포구', '11440'], ['양천구', '11470'],
+  ['강서구', '11500'], ['구로구', '11530'], ['금천구', '11545'], ['영등포구', '11560'], ['동작구', '11590'],
+  ['관악구', '11620'], ['서초구', '11650'], ['강남구', '11680'], ['송파구', '11710'], ['강동구', '11740'],
 ]

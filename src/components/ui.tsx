@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react'
-import type { Consult, Contract, Settings } from '../data/sample'
+import type { Consult, Contract, Listing, Settings } from '../data/sample'
 import { useBackLayer } from '../lib/nav'
 
 // ── 앱 전역 데이터 ─────────────────────────────────
@@ -11,6 +11,8 @@ export interface AppData {
   setConsults: Set<Consult[]>
   contracts: Contract[]
   setContracts: Set<Contract[]>
+  listings: Listing[]
+  setListings: Set<Listing[]>
 }
 export const DataCtx = createContext<AppData>(null as unknown as AppData)
 export const useData = () => useContext(DataCtx)

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Field, Icon, Sheet, useData, type Intent, type Tab } from '../components/ui'
+import { SEOUL_GU } from '../data/sample'
 import { upcoming } from '../lib/match'
 import { dday, koDate, today, toast, won } from '../lib/util'
 
@@ -108,7 +109,7 @@ export default function Home({ go }: { go: (t: Tab, i?: Intent) => void }) {
             <button
               className="btn block-btn"
               onClick={() => {
-                setSettings({ office: draft.office.trim() || settings.office, region: draft.region.trim() || settings.region })
+                setSettings({ ...draft, office: draft.office.trim() || settings.office, region: draft.region.trim() || settings.region, lawdCd: draft.lawdCd.trim(), dong: draft.dong.trim() })
                 setEditing(false)
                 toast('저장했습니다')
               }}
@@ -120,8 +121,31 @@ export default function Home({ go }: { go: (t: Tab, i?: Intent) => void }) {
           <Field label="사무소 이름">
             <input value={draft.office} onChange={(e) => setDraft({ ...draft, office: e.target.value })} />
           </Field>
-          <Field label="담당 지역 (카드뉴스·PPT 에 표시)">
+          <Field label="담당 지역 이름 (카드뉴스·PPT 에 표시)">
             <input value={draft.region} onChange={(e) => setDraft({ ...draft, region: e.target.value })} />
+          </Field>
+          <h3 className="sub-h">실거래 조회 지역</h3>
+          <Field label="서울은 구 선택 (그 외 지역은 아래에 코드 입력)">
+            <select value={SEOUL_GU.some(([, c]) => c === draft.lawdCd) ? draft.lawdCd : ''} onChange={(e) => e.target.value && setDraft({ ...draft, lawdCd: e.target.value })}>
+              <option value="">직접 입력</option>
+              {SEOUL_GU.map(([n, c]) => (
+                <option key={c} value={c}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="row">
+            <Field label="시군구 코드 (5자리)">
+              <input inputMode="numeric" maxLength={5} value={draft.lawdCd} onChange={(e) => setDraft({ ...draft, lawdCd: e.target.value })} />
+            </Field>
+            <Field label="동 이름 (비우면 전체)">
+              <input value={draft.dong} onChange={(e) => setDraft({ ...draft, dong: e.target.value })} placeholder="예: 아현동" />
+            </Field>
+          </div>
+          <p className="hint">시군구 코드는 법정동코드 앞 5자리입니다. (예: 마포구 11440)</p>
+          <Field label="서버 접속 암호 (설정한 경우만)">
+            <input type="password" autoComplete="off" value={draft.passcode} onChange={(e) => setDraft({ ...draft, passcode: e.target.value })} />
           </Field>
         </Sheet>
       )}

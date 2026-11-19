@@ -55,10 +55,11 @@ export interface CardInput {
   trades: Trade[]
   news: News[]
   sample: boolean
+  insight?: { comment: string; points: string[] } | null
 }
 
 export function tradeStats(trades: Trade[]) {
-  const week = trades.filter((t) => daysUntil(t.date) >= -7)
+  const week = trades.filter((t) => daysUntil(t.date) >= -30) // 신고 기한(30일)을 감안해 최근 30일 기준
   const avg = week.length ? Math.round(week.reduce((s, t) => s + t.price, 0) / week.length) : 0
   const top = [...week].sort((a, b) => b.price - a.price)[0]
   const up = week.filter((t) => t.prev && t.price > t.prev).length
@@ -69,9 +70,9 @@ export function tradeStats(trades: Trade[]) {
 /** 실거래 데이터로 만든 한 줄 요약 (규칙 기반) */
 export function briefingComment(trades: Trade[]) {
   const { week, avg, top, up, down } = tradeStats(trades)
-  if (!week.length) return '최근 7일간 신고된 실거래가 없습니다.'
+  if (!week.length) return '최근 30일간 신고된 매매 실거래가 없습니다.'
   const mood = up > down ? '상승 거래가 우세합니다' : up < down ? '하락 거래가 우세합니다' : '보합세입니다'
-  return `최근 7일 매매 ${week.length}건, 평균 ${won(avg)}. 직전 거래 대비 상승 ${up}건·하락 ${down}건으로 ${mood}. 최고가는 ${top.complex} ${top.area}㎡ ${won(top.price)}.`
+  return `최근 30일 매매 ${week.length}건, 평균 ${won(avg)}. 직전 거래 대비 상승 ${up}건·하락 ${down}건으로 ${mood}. 최고가는 ${top.complex} ${top.area}㎡ ${won(top.price)}.`
 }
 
 function frame(title: string, page: number, total: number, inp: CardInput) {
@@ -92,7 +93,7 @@ function frame(title: string, page: number, total: number, inp: CardInput) {
 
 function footer(c: Ctx, inp: CardInput, color: string) {
   text(c, inp.office, 72, H - 64, 30, color, 700)
-  text(c, inp.sample ? '※ 샘플 데이터 (실제 시세 아님)' : `${koDate(today())} 기준`, W - 72, H - 64, 26, color, 500, 'right')
+  text(c, inp.sample ? '※ 샘플 데이터 (실제 시세 아님)' : `자료: 국토교통부 실거래가 · ${shortDate(today())} 기준`, W - 72, H - 64, 26, color, 500, 'right')
 }
 
 function cover(inp: CardInput, total: number) {
@@ -122,7 +123,7 @@ function cover(inp: CardInput, total: number) {
 
   const s = tradeStats(inp.trades)
   const items: [string, string][] = [
-    ['최근 7일 매매', `${s.week.length}건`],
+    ['최근 30일 매매', `${s.week.length}건`],
     ['평균 거래가', won(s.avg)],
     ['상승 / 하락', `${s.up} / ${s.down}`],
   ]
@@ -165,7 +166,7 @@ function complexCard(inp: CardInput, page: number, total: number) {
     .sort((a, b) => b.avg - a.avg)
     .slice(0, 6)
   const max = Math.max(...rows.map((r) => r.avg), 1)
-  text(c, '최근 2주 매매 실거래 기준', 72, 262, 28, SUB, 500)
+  text(c, '최근 매매 실거래 기준', 72, 262, 28, SUB, 500)
   rows.forEach((r, i) => {
     const y = 330 + i * 150
     text(c, r.name, 72, y + 34, 36, INK, 700)
@@ -193,15 +194,33 @@ function newsCard(inp: CardInput, page: number, total: number) {
   return cv
 }
 
-/** 카드뉴스 4장을 PNG dataURL 로 */
+function insightCard(inp: CardInput, page: number, total: number) {
+  const { cv, c } = frame('AI 시장 분석', page, total, inp)
+  const ins = inp.insight!
+  rr(c, 72, 270, W - 144, 330, 24, BRAND)
+  wrap(c, ins.comment, 112, 345, W - 224, 36, '#fff', 600, 1.5, 5)
+  let y = 650
+  ins.points.slice(0, 3).forEach((p, i) => {
+    rr(c, 72, y, W - 144, 150, 22, '#fff')
+    rr(c, 104, y + 47, 56, 56, 28, '#ff7a3d')
+    text(c, String(i + 1), 132, y + 87, 30, '#fff', 800, 'center')
+    wrap(c, p, 188, y + (c.measureText(p).width > 600 ? 68 : 88), W - 300, 34, INK, 700, 1.35, 2)
+    y += 170
+  })
+  text(c, '※ AI가 공개 자료를 요약한 참고용 내용입니다', 72, H - 120, 24, SUB, 500)
+  return cv
+}
+
+/** 카드뉴스를 PNG dataURL 로 (AI 분석이 있으면 5장, 없으면 4장) */
 export async function renderCards(inp: CardInput): Promise<string[]> {
   try {
     await Promise.all([document.fonts.load(`800 40px Pretendard`), document.fonts.load(`500 40px Pretendard`)])
   } catch {
     /* 폰트 로드 실패 시 시스템 글꼴 사용 */
   }
-  const total = 4
-  return [cover(inp, total), tradesCard(inp, 2, total), complexCard(inp, 3, total), newsCard(inp, 4, total)].map((cv) =>
-    cv.toDataURL('image/png'),
-  )
+  const total = inp.insight ? 5 : 4
+  const cards = [cover(inp, total), tradesCard(inp, 2, total), complexCard(inp, 3, total)]
+  if (inp.insight) cards.push(insightCard(inp, 4, total))
+  cards.push(newsCard(inp, total, total))
+  return cards.map((cv) => cv.toDataURL('image/png'))
 }

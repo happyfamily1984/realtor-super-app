@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
-import { Chips, PageHead, SampleBadge } from '../components/ui'
-import { LISTINGS, type Listing } from '../data/sample'
-import { shortDate, won } from '../lib/util'
+import { useMemo, useRef, useState } from 'react'
+import { Chips, Confirm, Icon, PageHead, SampleBadge, Sheet, useData } from '../components/ui'
+import type { Deal, Kind, Listing } from '../data/sample'
+import { api } from '../lib/api'
+import { shortDate, shrinkImage, today, toast, uid, won } from '../lib/util'
 
 const DEALS = ['전체', '매매', '전세', '월세'] as const
 const KINDS = ['전체', '아파트', '오피스텔', '빌라', '상가'] as const
@@ -12,10 +13,14 @@ export default function Listings() {
   const [deal, setDeal] = useState<(typeof DEALS)[number]>('전체')
   const [kind, setKind] = useState<(typeof KINDS)[number]>('전체')
   const [view, setView] = useState<'목록' | '차트'>('목록')
+  const { listings, setListings } = useData()
+  const [importing, setImporting] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const isSample = listings.some((l) => !l.src)
 
   const rows = useMemo(
-    () => LISTINGS.filter((l) => (deal === '전체' || l.deal === deal) && (kind === '전체' || l.kind === kind)),
-    [deal, kind],
+    () => listings.filter((l) => (deal === '전체' || l.deal === deal) && (kind === '전체' || l.kind === kind)),
+    [deal, kind, listings],
   )
   // 차트는 가격 단위가 같아야 하므로 한 가지 거래유형 기준
   const chartDeal = deal === '전체' ? '매매' : deal
@@ -31,7 +36,20 @@ export default function Listings() {
 
   return (
     <>
-      <PageHead title="지역 매물" sub="네이버 매물 정리·시각화" right={<SampleBadge />} />
+      <PageHead
+        title="지역 매물"
+        sub="매물 정리·시각화"
+        right={
+          <button className="btn small" onClick={() => setImporting(true)}>
+            <Icon name="plus" size={18} /> 가져오기
+          </button>
+        }
+      />
+      {isSample && (
+        <section className="block">
+          <SampleBadge /> <small>‘가져오기’로 실제 매물을 넣으면 샘플은 사라집니다.</small>
+        </section>
+      )}
       <section className="block filters">
         <Chips options={DEALS} value={deal} onChange={setDeal} />
         <Chips options={KINDS} value={kind} onChange={setKind} />
@@ -64,6 +82,11 @@ export default function Listings() {
       {view === '목록' ? (
         <section className="block">
           {rows.length === 0 && <p className="empty">조건에 맞는 매물이 없습니다.</p>}
+          {!isSample && listings.length > 0 && (
+            <button className="link" onClick={() => setClearing(true)}>
+              매물 전체 비우기
+            </button>
+          )}
           <ul className="list">
             {rows.map((l) => (
               <li key={l.id} className="card">
@@ -109,7 +132,117 @@ export default function Listings() {
           </section>
         </>
       )}
+
+      {importing && (
+        <ImportSheet
+          onClose={() => setImporting(false)}
+          onDone={(items) => {
+            setListings((p) => [...items, ...p.filter((l) => l.src)]) // 샘플은 제거
+            setImporting(false)
+            toast(`매물 ${items.length}건을 가져왔습니다`)
+          }}
+        />
+      )}
+      {clearing && (
+        <Confirm
+          message="가져온 매물을 모두 삭제하겠습니까?"
+          onNo={() => setClearing(false)}
+          onYes={() => {
+            setListings([])
+            setClearing(false)
+          }}
+        />
+      )}
     </>
+  )
+}
+
+const DEAL_SET: Deal[] = ['매매', '전세', '월세']
+const KIND_SET: Kind[] = ['아파트', '오피스텔', '빌라', '상가']
+
+/** 매물 화면에서 복사한 글·캡처를 AI 가 표로 정리 */
+function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: (items: Listing[]) => void }) {
+  const [text, setText] = useState('')
+  const [shots, setShots] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
+  const input = useRef<HTMLInputElement>(null)
+
+  const addShots = async (files: FileList | null) => {
+    if (!files) return
+    const add = await Promise.all(Array.from(files).map((f) => shrinkImage(f, 1400)))
+    setShots((p) => [...p, ...add].slice(0, 6))
+  }
+  const run = async () => {
+    setBusy(true)
+    try {
+      const r = await api<{ listings: Partial<Listing>[] }>('ai', { task: 'listings', text, images: shots })
+      const items = (r.listings ?? [])
+        .filter((l) => l.complex && Number(l.price) > 0)
+        .map<Listing>((l) => ({
+          id: uid(),
+          complex: String(l.complex),
+          kind: KIND_SET.includes(l.kind as Kind) ? (l.kind as Kind) : '아파트',
+          deal: DEAL_SET.includes(l.deal as Deal) ? (l.deal as Deal) : '매매',
+          price: Number(l.price) || 0,
+          rent: Number(l.rent) || undefined,
+          area: Number(l.area) || 0,
+          floor: String(l.floor || '-'),
+          dir: String(l.dir || '-'),
+          desc: String(l.desc || ''),
+          date: today(),
+          src: 'import',
+        }))
+      if (!items.length) return toast('매물을 찾지 못했습니다. 목록이 잘 보이게 다시 시도해 주세요.')
+      onDone(items)
+    } catch (e) {
+      toast((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Sheet
+      title="매물 가져오기"
+      onClose={onClose}
+      footer={
+        <button className="btn block-btn" disabled={busy || (!text.trim() && !shots.length)} onClick={run}>
+          {busy ? 'AI가 정리하는 중…' : 'AI로 정리해서 가져오기'}
+        </button>
+      }
+    >
+      <p className="hint">
+        네이버 부동산 등에서 보고 있는 매물 목록을 <b>화면 캡처</b>하거나 <b>글을 길게 눌러 복사</b>해서 넣어 주세요. AI가 단지·가격·면적·층을 표로 정리합니다.
+      </p>
+      <h3 className="sub-h">화면 캡처 (최대 6장)</h3>
+      <div className="photos">
+        {shots.map((s, i) => (
+          <button key={i} className="photo" onClick={() => setShots((p) => p.filter((_, j) => j !== i))} aria-label="캡처 빼기">
+            <img src={s} alt={`캡처 ${i + 1}`} />
+          </button>
+        ))}
+        {shots.length < 6 && (
+          <button className="photo add" onClick={() => input.current?.click()}>
+            <Icon name="plus" />
+            <small>캡처 선택</small>
+          </button>
+        )}
+        <input
+          ref={input}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            addShots(e.target.files)
+            e.target.value = ''
+          }}
+        />
+      </div>
+      {shots.length > 0 && <p className="hint">캡처를 누르면 빠집니다.</p>}
+      <h3 className="sub-h">복사한 글 붙여넣기</h3>
+      <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder="매물 목록을 복사해 여기에 붙여넣기" />
+    </Sheet>
   )
 }
 
