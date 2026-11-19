@@ -18,11 +18,11 @@ export class HttpError extends Error {
 }
 
 /** 공통 처리: 접속 암호 확인 + 오류를 { error } 로 응답 */
-export function handler(fn: (req: Req) => Promise<unknown>, cacheSeconds = 0) {
+export function handler(fn: (req: Req) => Promise<unknown>, cacheSeconds = 0, open = false) {
   return async (req: Req, res: Res) => {
     try {
       const pass = process.env.APP_PASSCODE
-      if (pass && req.headers['x-app-code'] !== encodeURIComponent(pass)) throw new HttpError(401, '접속 암호가 맞지 않습니다. 홈 > 설정에서 입력해 주세요.')
+      if (!open && pass && req.headers['x-app-code'] !== encodeURIComponent(pass)) throw new HttpError(401, '접속 암호가 맞지 않습니다. 홈 > 설정에서 입력해 주세요.')
       const data = await fn(req)
       if (cacheSeconds) res.setHeader('Cache-Control', `private, max-age=${cacheSeconds}`)
       res.status(200).json(data)

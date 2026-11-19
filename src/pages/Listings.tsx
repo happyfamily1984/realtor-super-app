@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chips, Confirm, Icon, PageHead, SampleBadge, Sheet, useData } from '../components/ui'
 import type { Deal, Kind, Listing, Trade } from '../data/sample'
 import { api } from '../lib/api'
-import { BOOKMARKLET, mergeListings, parseCollectorFile, parseRegionNames, type CollectorFile } from '../lib/naverParse'
+import { articleUrl, BOOKMARKLET, findDupes, mergeListings, parseCollectorFile, parseRegionNames, type CollectorFile } from '../lib/naverParse'
 import { daysUntil, shortDate, shrinkImage, today, toast, uid, usePersist, won } from '../lib/util'
 
 const DEALS = ['전체', '매매', '전세', '월세'] as const
@@ -47,6 +47,24 @@ export default function Listings() {
   const [importing, setImporting] = useState(false)
   const [clearing, setClearing] = useState(false)
   const isSample = listings.some((l) => !l.src)
+  const [showDupes, setShowDupes] = useState(false)
+  const dupes = useMemo(() => findDupes(listings, settings.myRealtor || settings.office, settings.myArticles), [listings, settings.myRealtor, settings.office, settings.myArticles])
+  // 새로 발견된 중복 광고는 한 번만 알린다
+  useEffect(() => {
+    const key = (d: (typeof dupes)[number]) => `${d.mine.key}>${d.other.key}`
+    let seen: string[] = []
+    try {
+      seen = JSON.parse(localStorage.getItem('seenDupes') || '[]')
+    } catch {
+      /* 무시 */
+    }
+    const fresh = dupes.filter((d) => !seen.includes(key(d)))
+    if (!fresh.length) return
+    localStorage.setItem('seenDupes', JSON.stringify(dupes.map(key)))
+    const msg = `내 매물과 같은 매물을 다른 부동산이 광고 중입니다 (새로 ${fresh.length}건)`
+    toast(msg)
+    if ('Notification' in window && Notification.permission === 'granted') new Notification('중복 광고 발견', { body: `${fresh[0].mine.complex} · ${fresh[0].other.realtor}${fresh.length > 1 ? ` 외 ${fresh.length - 1}건` : ''}` })
+  }, [dupes])
 
   const rows = useMemo(
     () => active.filter((l) => (deal === '전체' || l.deal === deal) && (kind === '전체' || l.kind === kind) && (region === '전체' || (l.region && regionLabel(l.region) === region))),
@@ -98,6 +116,17 @@ export default function Listings() {
       {isSample && (
         <section className="block">
           <SampleBadge /> <small>‘가져오기’로 실제 매물을 넣으면 샘플은 사라집니다.</small>
+        </section>
+      )}
+      {dupes.length > 0 && (
+        <section className="block">
+          <button className="notice" onClick={() => setShowDupes(true)}>
+            <Icon name="bell" />
+            <span>
+              <b>내 매물을 다른 부동산도 광고 중 · {dupes.length}건</b>
+              <small>눌러서 어떤 매물인지 확인하세요.</small>
+            </span>
+          </button>
         </section>
       )}
       {lastCollect && (
@@ -175,7 +204,7 @@ export default function Listings() {
                   </div>
                 </div>
                 <small>
-                  전용 {l.area}㎡ · {l.floor} · {l.dir} · {shortDate(l.date)} 등록
+                  전용 {l.area}㎡ · {l.floor} · {l.dir} · {shortDate(l.date)} 등록{l.realtor ? ` · ${l.realtor}` : ''}
                 </small>
                 <p className="news-sum">{l.desc}</p>
               </li>
@@ -254,6 +283,39 @@ export default function Listings() {
         </>
       )}
 
+      {showDupes && (
+        <Sheet title="같은 매물의 다른 광고" onClose={() => setShowDupes(false)}>
+          <p className="hint">마지막으로 수집한 네이버 매물 기준입니다. 동·면적·층이 같으면 같은 매물로 봅니다. 눌러서 네이버에서 확인하세요.</p>
+          <ul className="list">
+            {dupes.map((d) => (
+              <li key={`${d.mine.id}${d.other.id}`} className="card">
+                <a className="dupe" href={articleUrl(d.other)} target="_blank" rel="noreferrer">
+                  <div className="line">
+                    <div className="grow">
+                      <span className={`tag deal-${d.other.deal}`}>{d.other.deal}</span> {!d.sure && <span className="tag">추정</span>}
+                      <b className="title">{d.other.complex}</b>
+                    </div>
+                    <Icon name="chevron" />
+                  </div>
+                  <small>
+                    전용 {d.other.area}㎡ · {d.other.floor}
+                  </small>
+                  <div className="dupe-cmp">
+                    <span>
+                      <small>우리 광고</small>
+                      <b>{listingPrice(d.mine)}</b>
+                    </span>
+                    <span>
+                      <small>{d.other.realtor}</small>
+                      <b className={d.other.price < d.mine.price ? 'down' : d.other.price > d.mine.price ? 'up' : ''}>{listingPrice(d.other)}</b>
+                    </span>
+                  </div>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </Sheet>
+      )}
       {importing && (
         <ImportSheet
           onClose={() => setImporting(false)}

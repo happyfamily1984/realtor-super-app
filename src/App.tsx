@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Confirm, DataCtx, Icon, type Intent, type Tab } from './components/ui'
 import { DEFAULT_SETTINGS, LISTINGS, SAMPLE_CONSULTS, SAMPLE_CONTRACTS, type Consult, type Contract, type Listing, type Settings } from './data/sample'
 import { exitApp, initNav, stayInApp, useBackLayer } from './lib/nav'
+import { registerSw } from './lib/push'
 import { mergeListings, parseCollectorFile, parseRegionNames, type CollectorFile } from './lib/naverParse'
 import { toast, usePersist } from './lib/util'
 import Briefing from './pages/Briefing'
@@ -30,6 +31,7 @@ export default function App() {
   const [exited, setExited] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
   const [listKey, setListKey] = useState(0)
+  const [consultKey, setConsultKey] = useState(0)
   const listingsRef = useRef(listings)
   listingsRef.current = listings
 
@@ -82,6 +84,23 @@ export default function App() {
   }
   const page = { intent, clearIntent: () => setIntent(null) }
 
+  // 푸시 알림을 눌러 들어온 경우 (새 채팅·매물 접수)
+  useEffect(() => {
+    registerSw()
+    const open = (url: string) => {
+      const g = new URL(url, location.href).searchParams.get('go')
+      if (g === 'chat' || g === 'intake') {
+        setIntent(g)
+        setTab('consult')
+        setConsultKey((k) => k + 1)
+      }
+    }
+    open(location.href)
+    const h = (e: MessageEvent) => e.data?.type === 'push-open' && open(e.data.url)
+    navigator.serviceWorker?.addEventListener('message', h)
+    return () => navigator.serviceWorker?.removeEventListener('message', h)
+  }, [])
+
   if (exited)
     return (
       <div className="exited">
@@ -97,7 +116,7 @@ export default function App() {
           {tab === 'home' && <Home go={go} />}
           {tab === 'briefing' && <Briefing {...page} />}
           {tab === 'listings' && <Listings key={listKey} />}
-          {tab === 'consult' && <ConsultPage {...page} />}
+          {tab === 'consult' && <ConsultPage key={consultKey} {...page} />}
           {tab === 'contracts' && <Contracts {...page} />}
         </main>
         <nav className="tabbar" aria-label="하단 메뉴">

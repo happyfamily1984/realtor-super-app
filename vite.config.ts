@@ -20,6 +20,9 @@ function devApi(): Plugin {
             return out
           },
           setHeader: (k: string, v: string) => res.setHeader(k, v),
+          send(body: Buffer) {
+            res.end(body)
+          },
           json(body: unknown) {
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
             res.end(JSON.stringify(body))
@@ -36,4 +39,9 @@ function devApi(): Plugin {
   }
 }
 
-export default defineConfig({ base: './', plugins: [react(), devApi()] })
+export default defineConfig({
+  base: './',
+  plugins: [react(), devApi()],
+  // 중개사 슈퍼앱(index.html)과 손님용 앱(customer.html) 두 화면을 함께 만든다
+  build: { rollupOptions: { input: { main: 'index.html', customer: 'customer.html' } } },
+})

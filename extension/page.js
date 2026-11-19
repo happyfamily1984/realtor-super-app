@@ -129,7 +129,7 @@
     status(name + ' 매물을 모으는 중…');
 
     // (가) 동 전체 목록
-    var q = '/api/articles?cortarNo=' + code + '&order=rank&realEstateType=' + types + '&tradeType=&priceType=RETAIL&sameAddressGroup=true&page=';
+    var q = '/api/articles?cortarNo=' + code + '&order=rank&realEstateType=' + types + '&tradeType=&priceType=RETAIL&sameAddressGroup=false&page=';
     var d = await api(q + 1);
     if (listOf(d).length) {
       pages = 1;
@@ -145,7 +145,7 @@
         var cnt = (c.dealCount || 0) + (c.leaseCount || 0) + (c.rentCount || 0) + (c.shortTermRentCount || 0);
         if ('dealCount' in c && !cnt) continue; // 매물이 없는 단지는 건너뛴다
         status(name + ' · ' + (c.complexName || c.complexNo) + ' (' + (i + 1) + '/' + complexes.length + ') · 약 ' + total() + '건');
-        var cq = '/api/articles/complex/' + c.complexNo + '?realEstateType=' + types + '&tradeType=&priceType=RETAIL&order=rank&sameAddressGroup=true&type=list&complexNo=' + c.complexNo + '&page=';
+        var cq = '/api/articles/complex/' + c.complexNo + '?realEstateType=' + types + '&tradeType=&priceType=RETAIL&order=rank&sameAddressGroup=false&type=list&complexNo=' + c.complexNo + '&page=';
         var p = 1, cdta = await api(cq + p);
         while (more(cdta) && p < 30) cdta = await api(cq + (++p));
         if (more(cdta)) complete = false;

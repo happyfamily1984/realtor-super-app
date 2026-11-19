@@ -1,0 +1,11 @@
+/* 손님용 앱: 고객용 자료와 같은 쪽빛 계열 */
+body.customer {
+  --brand: #172a54;
+  --brand-ink: #101d3b;
+  --brand-soft: #e8ecf5;
+  --accent: #c4321d;
+  --ink: #121a2c;
+  --sub: #5a6376;
+  --line: #dfe3ea;
+  --bg: #f4f5f7;
+}

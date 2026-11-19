@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ExportSheet, { type ExportContent } from '../components/ExportSheet'
 import { PageHead, SampleBadge, Sheet, useData, type PageProps } from '../components/ui'
 import { NEWS, TRADES, type News, type Trade } from '../data/sample'
 import { api } from '../lib/api'
@@ -28,6 +29,7 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
   const [cards, setCards] = useState<string[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
+  const [exporting, setExporting] = useState<ExportContent | null>(null)
   const loading = !live
 
   useEffect(() => {
@@ -159,6 +161,9 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
             {busy ? '만드는 중…' : '카드뉴스 만들기'}
           </button>
         </div>
+        <button className="btn ghost block-btn write-btn" onClick={() => setExporting({ title: '', body: '', images: [], kind: '정보' })}>
+          새 소식 직접 써서 내보내기
+        </button>
       </section>
 
       <section className="block">
@@ -206,6 +211,7 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
         </ul>
       </section>
 
+      {exporting && !cards && <ExportSheet initial={exporting} onClose={() => setExporting(null)} />}
       {cards && (
         <Sheet
           title="카드뉴스 미리보기"
@@ -215,8 +221,18 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
               <button className="btn ghost" onClick={saveAll}>
                 전체 저장
               </button>
-              <button className="btn" onClick={share}>
-                공유하기
+              <button
+                className="btn"
+                onClick={() =>
+                  setExporting({
+                    title: `${settings.region} 부동산 데일리 브리핑 (${today().slice(5).replace('-', '.')})`,
+                    body: `${insight?.comment || briefingComment(trades)}${insight ? `\n\n${insight.points.map((p) => `· ${p}`).join('\n')}` : ''}\n\n${settings.office}`,
+                    images: cards,
+                    kind: '카드뉴스',
+                  })
+                }
+              >
+                내보내기
               </button>
             </div>
           }
@@ -230,6 +246,7 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
               <img key={i} src={c} alt={`카드뉴스 ${i + 1}번`} onClick={() => downloadDataUrl(c, `브리핑_${today()}_${i + 1}.png`)} />
             ))}
           </div>
+          {exporting && <ExportSheet initial={exporting} onClose={() => setExporting(null)} />}
         </Sheet>
       )}
     </>

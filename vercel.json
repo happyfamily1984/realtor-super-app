@@ -1,5 +1,6 @@
 {
   "framework": "vite",
   "regions": ["icn1"],
-  "functions": { "api/*.ts": { "maxDuration": 60 } }
+  "functions": { "api/*.ts": { "maxDuration": 60 } },
+  "crons": [{ "path": "/api/cron", "schedule": "7 0 * * *" }]
 }

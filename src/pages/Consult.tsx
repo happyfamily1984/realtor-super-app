@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Chips, Confirm, Field, Icon, PageHead, Sheet, useData, type PageProps } from '../components/ui'
 import { type Consult, type Deal, type Kind } from '../data/sample'
+import { api } from '../lib/api'
 import { recommend } from '../lib/match'
+import { deviceId, enablePush, pushState } from '../lib/push'
+import { ChatInbox, IntakeInbox, type InboxData } from './Inbox'
 import { useBackLayer } from '../lib/nav'
 import { renderProposal, saveProposalPptx } from '../lib/proposal'
 import { downloadDataUrl, koDate, shortDate, today, toast, uid, won } from '../lib/util'
@@ -14,7 +17,68 @@ const FILTER = ['전체', ...STATUS] as const
 
 const blank = (): Consult => ({ id: '', name: '', phone: '', deal: '매매', kind: '아파트', budget: 0, areaMin: 0, moveIn: '', memo: '', status: '신규', createdAt: today() })
 
-export default function ConsultPage({ intent, clearIntent }: PageProps) {
+const SEGS = ['상담 신청', '채팅', '매물 접수'] as const
+
+/** 상담 탭: 직접 받은 상담 신청 + 손님용 앱에서 온 채팅·매물 접수 */
+export default function ConsultPage(props: PageProps) {
+  const [seg, setSeg] = useState<(typeof SEGS)[number]>(props.intent === 'chat' ? '채팅' : props.intent === 'intake' ? '매물 접수' : '상담 신청')
+  const [data, setData] = useState<InboxData | null>(null)
+  const [error, setError] = useState('')
+  const [perm, setPerm] = useState(pushState())
+  const reload = () =>
+    api<InboxData>('office?a=inbox')
+      .then((r) => (setData(r), setError('')))
+      .catch((e) => setError(e.message))
+  useEffect(() => {
+    if (props.intent === 'chat' || props.intent === 'intake') props.clearIntent()
+    reload()
+    const t = setInterval(() => !document.hidden && reload(), 15000)
+    return () => clearInterval(t)
+  }, [])
+  const unread = data?.customers.reduce((s, c) => s + (c.unreadOffice || 0), 0) ?? 0
+  const fresh = data?.intakes.filter((i) => i.status === '접수').length ?? 0
+
+  return (
+    <>
+      <div className="seg hub">
+        {SEGS.map((s) => (
+          <button key={s} className={s === seg ? 'on' : ''} onClick={() => setSeg(s)}>
+            {s}
+            {s === '채팅' && unread > 0 && <span className="unread">{unread}</span>}
+            {s === '매물 접수' && fresh > 0 && <span className="unread">{fresh}</span>}
+          </button>
+        ))}
+      </div>
+      {seg !== '상담 신청' && perm !== 'granted' && perm !== 'unsupported' && (
+        <section className="block">
+          <button
+            className="notice"
+            onClick={async () => {
+              try {
+                await enablePush('office', deviceId('odev'))
+                toast('알림을 켰습니다')
+              } catch (e) {
+                toast((e as Error).message)
+              }
+              setPerm(pushState())
+            }}
+          >
+            <Icon name="bell" />
+            <span>
+              <b>새 채팅·매물 접수 알림 켜기</b>
+              <small>앱을 닫아도 이 기기로 알려 드립니다.</small>
+            </span>
+          </button>
+        </section>
+      )}
+      {seg === '상담 신청' && <ConsultRequests {...props} />}
+      {seg === '채팅' && <ChatInbox data={data} error={error} reload={reload} />}
+      {seg === '매물 접수' && <IntakeInbox data={data} error={error} reload={reload} />}
+    </>
+  )
+}
+
+function ConsultRequests({ intent, clearIntent }: PageProps) {
   const { consults, setConsults } = useData()
   const [filter, setFilter] = useState<(typeof FILTER)[number]>('전체')
   const [form, setForm] = useState<Consult | null>(null)

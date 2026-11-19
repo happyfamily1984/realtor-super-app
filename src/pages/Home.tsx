@@ -125,7 +125,7 @@ export default function Home({ go }: { go: (t: Tab, i?: Intent) => void }) {
             <input value={draft.region} onChange={(e) => setDraft({ ...draft, region: e.target.value })} />
           </Field>
           <h3 className="sub-h">실거래 조회 지역</h3>
-          <Field label="서울은 구 선택 (그 외 지역은 아래에 코드 입력)">
+          <Field label="지역 선택 (목록에 없으면 아래에 코드 입력)">
             <select value={SEOUL_GU.some(([, c]) => c === draft.lawdCd) ? draft.lawdCd : ''} onChange={(e) => e.target.value && setDraft({ ...draft, lawdCd: e.target.value })}>
               <option value="">직접 입력</option>
               {SEOUL_GU.map(([n, c]) => (
@@ -143,7 +143,14 @@ export default function Home({ go }: { go: (t: Tab, i?: Intent) => void }) {
               <input value={draft.dong} onChange={(e) => setDraft({ ...draft, dong: e.target.value })} placeholder="예: 아현동" />
             </Field>
           </div>
-          <p className="hint">시군구 코드는 법정동코드 앞 5자리입니다. (예: 마포구 11440)</p>
+          <p className="hint">시군구 코드는 법정동코드 앞 5자리입니다. (예: 안양시 동안구 41173)</p>
+          <h3 className="sub-h">내 매물 중복 광고 확인</h3>
+          <Field label="네이버에 표시되는 우리 사무소 이름 (비우면 위 사무소 이름)">
+            <input value={draft.myRealtor} onChange={(e) => setDraft({ ...draft, myRealtor: e.target.value })} />
+          </Field>
+          <Field label="우리 사무소 네이버 매물번호 (쉼표로 구분, 선택)">
+            <textarea rows={2} value={draft.myArticles} onChange={(e) => setDraft({ ...draft, myArticles: e.target.value })} placeholder="2512345678, 2512345679" />
+          </Field>
           <Field label="서버 접속 암호 (설정한 경우만)">
             <input type="password" autoComplete="off" value={draft.passcode} onChange={(e) => setDraft({ ...draft, passcode: e.target.value })} />
           </Field>

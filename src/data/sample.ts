@@ -39,6 +39,10 @@ export interface Listing {
   // ── 누적 수집 기록 ──
   key?: string // 같은 매물인지 알아보는 값 (네이버 매물번호 등)
   group?: string // 단지 이름 (동 제외)
+  articleNo?: string // 네이버 매물번호
+  realtor?: string // 광고하는 중개사무소
+  complexNo?: string // 네이버 단지 번호
+  bld?: string // 동
   scope?: 'region' // 동(지역) 전체 목록에서 수집한 매물
   region?: string // 네이버 지역 코드 = 법정동코드 10자리 (앞 5자리는 시군구)
   firstSeen?: string // 처음 수집한 날
@@ -83,9 +87,11 @@ export interface Settings {
   lawdCd: string // 실거래 조회용 시군구 코드 5자리
   dong: string // 동 이름 (비우면 시군구 전체)
   passcode: string // 서버 접속 암호 (APP_PASSCODE 를 설정한 경우)
+  myRealtor: string // 네이버 부동산에 표시되는 우리 사무소 이름 (비우면 사무소 이름)
+  myArticles: string // 우리 사무소의 네이버 매물번호 (쉼표로 구분)
 }
 
-export const DEFAULT_SETTINGS: Settings = { office: '우리 공인중개사사무소', region: '마포구 아현동', lawdCd: '11440', dong: '아현동', passcode: '' }
+export const DEFAULT_SETTINGS: Settings = { office: '우리 공인중개사사무소', region: '안양시 동안구', lawdCd: '41173', dong: '', passcode: '', myRealtor: '', myArticles: '' }
 
 export const TRADES: Trade[] = [
   { id: 't1', complex: '아현 숲마을', area: 84, floor: 12, price: 172000, prev: 168500, date: dayOffset(-1) },
@@ -165,6 +171,7 @@ export const SAMPLE_CONTRACTS: Contract[] = [
 
 /** 서울 시군구 코드 (그 외 지역은 설정에서 5자리 코드를 직접 입력) */
 export const SEOUL_GU: [string, string][] = [
+  ['안양시 동안구', '41173'], ['안양시 만안구', '41171'], ['과천시', '41290'],
   ['종로구', '11110'], ['중구', '11140'], ['용산구', '11170'], ['성동구', '11200'], ['광진구', '11215'],
   ['동대문구', '11230'], ['중랑구', '11260'], ['성북구', '11290'], ['강북구', '11305'], ['도봉구', '11320'],
   ['노원구', '11350'], ['은평구', '11380'], ['서대문구', '11410'], ['마포구', '11440'], ['양천구', '11470'],

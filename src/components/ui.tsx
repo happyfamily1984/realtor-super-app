@@ -18,7 +18,7 @@ export const DataCtx = createContext<AppData>(null as unknown as AppData)
 export const useData = () => useContext(DataCtx)
 
 export type Tab = 'home' | 'briefing' | 'listings' | 'consult' | 'contracts'
-export type Intent = 'cards' | 'newConsult' | 'newContract' | null
+export type Intent = 'cards' | 'newConsult' | 'newContract' | 'chat' | 'intake' | null
 export interface PageProps {
   intent: Intent
   clearIntent: () => void

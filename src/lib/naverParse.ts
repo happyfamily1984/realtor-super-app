@@ -120,6 +120,10 @@ function toListing(o: Record<string, unknown>): Listing | null {
   return {
     key: id ? `id:${id}` : `${complex}|${deal}|${area}|${floor}`,
     group: String(name),
+    articleNo: id ? String(id) : undefined,
+    realtor: String(pick(f, 'realtorname', 'rltrnm', 'brokeragename', 'agentname') ?? '') || undefined,
+    complexNo: String(pick(f, 'complexno', 'hscpno', 'complexnumber') ?? '') || undefined,
+    bld: bld || undefined,
     region: asRegion(pick(f, ...REGION_KEYS)) || undefined,
     id: uid(),
     complex,
@@ -161,6 +165,7 @@ export function parseCollectorFile(file: CollectorFile): Listing[] {
         }
         const l = toListing(el as Record<string, unknown>)
         if (l) {
+          l.complexNo = l.complexNo || ctx.complexNo || undefined
           l.region = l.region || ctx.region || complexRegion.get(`no:${ctx.complexNo}`) || complexRegion.get(`nm:${l.group}`) || undefined
           if ((ctx.region && !ctx.complexNo) || (l.region && file.fullRegions?.includes(l.region))) l.scope = 'region'
           if (!found.has(l.key!)) found.set(l.key!, l)
@@ -225,6 +230,36 @@ export function mergeListings(old: Listing[], incoming: Listing[]): MergeResult 
   }
   return { list, added, changed, gone }
 }
+
+export interface Dupe {
+  mine: Listing
+  other: Listing
+  sure: boolean // 동·면적·층이 모두 같으면 확실, 층이 '고/중/저'로만 나오면 추정
+}
+const norm = (s = '') => s.replace(/[\s()（）·.\-]|공인중개사|사무소|부동산|중개/g, '')
+
+/** 우리 사무소 매물과 같은 물건을 다른 중개사무소가 광고하고 있는지 찾는다 */
+export function findDupes(listings: Listing[], myName: string, myNos: string): Dupe[] {
+  const nos = new Set(myNos.split(/[\s,]+/).filter(Boolean))
+  const me = norm(myName)
+  const isMine = (l: Listing) => (!!l.articleNo && nos.has(l.articleNo)) || (!!me && !!l.realtor && norm(l.realtor).includes(me))
+  const active = listings.filter((l) => !l.gone && l.src)
+  const out: Dupe[] = []
+  for (const m of active.filter(isMine)) {
+    for (const o of active) {
+      if (o === m || isMine(o) || !o.realtor) continue
+      if ((o.group ?? o.complex) !== (m.group ?? m.complex) || o.deal !== m.deal || o.area !== m.area) continue
+      if (o.bld && m.bld && o.bld !== m.bld) continue
+      if (o.floor !== m.floor) continue
+      const exactFloor = /^\d/.test(m.floor)
+      if (!exactFloor && !(o.bld && m.bld)) continue // 층도 동도 모르면 같은 물건이라 보기 어렵다
+      out.push({ mine: m, other: o, sure: exactFloor && !!o.bld && !!m.bld })
+    }
+  }
+  return out
+}
+/** 네이버에서 그 매물을 여는 주소 */
+export const articleUrl = (l: Listing) => (l.complexNo ? `https://new.land.naver.com/complexes/${l.complexNo}?articleNo=${l.articleNo}` : `https://m.land.naver.com/article/info/${l.articleNo}`)
 
 import code from './collector.js?raw'
 /** 즐겨찾기에 넣는 매물 수집기 주소 */

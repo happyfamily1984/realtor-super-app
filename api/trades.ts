@@ -42,13 +42,11 @@ export function withPrev(rows: Row[]): Row[] {
   return asc.reverse()
 }
 
-export default handler(async (req) => {
+/** 시군구의 최근 n개월 아파트 매매 실거래 (최신순, 직전 거래가 포함) */
+export async function fetchTrades(lawd: string, months: number) {
   const key = process.env.MOLIT_SERVICE_KEY
   if (!key) throw new HttpError(503, '국토부 실거래가 키가 설정되지 않았습니다 (MOLIT_SERVICE_KEY)')
-  const lawd = q(req, 'lawd')
   if (!/^\d{5}$/.test(lawd)) throw new HttpError(400, '시군구 코드(5자리)를 설정해 주세요')
-  const dong = q(req, 'dong').trim()
-  const months = Math.min(6, Math.max(1, parseInt(q(req, 'months')) || 3))
 
   const ymds: string[] = []
   const d = new Date(Date.now() + 9 * 3600_000) // 한국 시간
@@ -71,7 +69,13 @@ export default handler(async (req) => {
       return parseTrades(xml)
     }),
   )
-  let rows = withPrev(pages.flat())
+  return { rows: withPrev(pages.flat()), months: ymds }
+}
+
+export default handler(async (req) => {
+  const dong = q(req, 'dong').trim()
+  const months = Math.min(6, Math.max(1, parseInt(q(req, 'months')) || 3))
+  let { rows, months: ymds } = await fetchTrades(q(req, 'lawd'), months)
   if (dong) rows = rows.filter((r) => r.dong.includes(dong))
   return { trades: rows.slice(0, 300), months: ymds }
 }, 1800)
