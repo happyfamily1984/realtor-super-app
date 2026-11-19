@@ -1,0 +1,40 @@
+// 손님용 앱 APK: 배포된 손님용 웹앱(https://주소/customer.html)을 전체 화면 앱으로 여는 껍데기(TWA)
+// 빌드: ./build.sh <배포 주소>   예) ./build.sh my-app.vercel.app
+plugins { id 'com.android.application' }
+
+def host = project.findProperty('twaHost') ?: 'example.vercel.app'
+
+android {
+    namespace 'app.realtor.customer'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'app.realtor.customer'
+        minSdk 23
+        targetSdk 35
+        versionCode((project.findProperty('verCode') ?: '1') as int)
+        versionName '0.1.0'
+        resValue 'string', 'hostName', host
+        resValue 'string', 'launchUrl', "https://${host}/customer.html"
+        resValue 'string', 'assetStatements', '[{ \\"relation\\": [\\"delegate_permission/common.handle_all_urls\\"], \\"target\\": { \\"namespace\\": \\"web\\", \\"site\\": \\"https://' + host + '\\" } }]'
+    }
+    signingConfigs {
+        release {
+            if (project.hasProperty('ksFile')) {
+                storeFile file(project.property('ksFile'))
+                storePassword project.property('ksPass')
+                keyAlias 'customer'
+                keyPassword project.property('ksPass')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}
