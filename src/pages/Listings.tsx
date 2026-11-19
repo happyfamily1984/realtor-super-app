@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chips, Confirm, Icon, PageHead, SampleBadge, Sheet, useData } from '../components/ui'
-import type { Deal, Kind, Listing } from '../data/sample'
+import type { Deal, Kind, Listing, Trade } from '../data/sample'
 import { api } from '../lib/api'
-import { shortDate, shrinkImage, today, toast, uid, won } from '../lib/util'
+import { BOOKMARKLET, mergeListings, parseCollectorFile, type CollectorFile } from '../lib/naverParse'
+import { daysUntil, shortDate, shrinkImage, today, toast, uid, won } from '../lib/util'
 
 const DEALS = ['전체', '매매', '전세', '월세'] as const
 const KINDS = ['전체', '아파트', '오피스텔', '빌라', '상가'] as const
@@ -13,14 +14,40 @@ export default function Listings() {
   const [deal, setDeal] = useState<(typeof DEALS)[number]>('전체')
   const [kind, setKind] = useState<(typeof KINDS)[number]>('전체')
   const [view, setView] = useState<'목록' | '차트'>('목록')
-  const { listings, setListings } = useData()
+  const { listings, setListings, settings } = useData()
+  const [trades, setTrades] = useState<Trade[]>([])
+  const active = useMemo(() => listings.filter((l) => !l.gone), [listings])
+  const goneList = useMemo(() => listings.filter((l) => l.gone).sort((a, b) => b.gone!.localeCompare(a.gone!)), [listings])
+  const lastCollect = listings.reduce((m, l) => (l.lastSeen && l.lastSeen > m ? l.lastSeen : m), '')
+  const staleDays = lastCollect ? -daysUntil(lastCollect) : 0
+
+  // 수집해 둔 단지에 새 실거래 신고가 있으면 다시 수집하라고 알려 준다
+  useEffect(() => {
+    api<{ trades: Trade[] }>(`trades?${new URLSearchParams({ lawd: settings.lawdCd, dong: settings.dong, months: '3' })}`)
+      .then((r) => setTrades(r.trades))
+      .catch(() => {})
+  }, [settings.lawdCd, settings.dong])
+  const tradedGroups = useMemo(() => {
+    let seen: string[] | null = null
+    try {
+      seen = JSON.parse(localStorage.getItem('seenTrades') || 'null')
+    } catch {
+      /* 무시 */
+    }
+    if (!seen) return []
+    const known = new Set(seen)
+    const norm = (s: string) => s.replace(/\s/g, '')
+    const groups = [...new Set(active.map((l) => l.group ?? l.complex))]
+    const fresh = trades.filter((t) => !known.has(t.id))
+    return groups.filter((g) => fresh.some((t) => norm(g).includes(norm(t.complex)) || norm(t.complex).includes(norm(g))))
+  }, [trades, active])
   const [importing, setImporting] = useState(false)
   const [clearing, setClearing] = useState(false)
   const isSample = listings.some((l) => !l.src)
 
   const rows = useMemo(
-    () => listings.filter((l) => (deal === '전체' || l.deal === deal) && (kind === '전체' || l.kind === kind)),
-    [deal, kind, listings],
+    () => active.filter((l) => (deal === '전체' || l.deal === deal) && (kind === '전체' || l.kind === kind)),
+    [deal, kind, active],
   )
   // 차트는 가격 단위가 같아야 하므로 한 가지 거래유형 기준
   const chartDeal = deal === '전체' ? '매매' : deal
@@ -48,6 +75,24 @@ export default function Listings() {
       {isSample && (
         <section className="block">
           <SampleBadge /> <small>‘가져오기’로 실제 매물을 넣으면 샘플은 사라집니다.</small>
+        </section>
+      )}
+      {lastCollect && (
+        <section className="block">
+          {staleDays >= STALE_DAYS || tradedGroups.length > 0 ? (
+            <button className="notice" onClick={() => setImporting(true)}>
+              <Icon name="bell" />
+              <span>
+                <b>매물을 다시 수집해 주세요</b>
+                {staleDays >= STALE_DAYS && <small>마지막 수집 후 {staleDays}일이 지났습니다.</small>}
+                {tradedGroups.length > 0 && <small>새 실거래 신고: {tradedGroups.slice(0, 3).join(', ')}{tradedGroups.length > 3 ? ` 외 ${tradedGroups.length - 3}곳` : ''}</small>}
+              </span>
+            </button>
+          ) : (
+            <small>
+              마지막 수집 {staleDays === 0 ? '오늘' : `${staleDays}일 전`} · 누적 {listings.length}건 (현재 {active.length}건)
+            </small>
+          )}
         </section>
       )}
       <section className="block filters">
@@ -93,9 +138,17 @@ export default function Listings() {
                 <div className="line">
                   <div className="grow">
                     <span className={`tag deal-${l.deal}`}>{l.deal}</span> <span className="tag">{l.kind}</span>
+                    {l.newAt && l.newAt === lastCollect && <span className="tag new"> 신규</span>}
                     <b className="title">{l.complex}</b>
                   </div>
-                  <b className="price">{listingPrice(l)}</b>
+                  <div className="right">
+                    <b className="price">{listingPrice(l)}</b>
+                    {l.prevPrice && l.changedAt === lastCollect && l.prevPrice !== l.price && (
+                      <small className={l.price > l.prevPrice ? 'up' : 'down'}>
+                        {l.price > l.prevPrice ? '▲' : '▼'} {won(Math.abs(l.price - l.prevPrice))}
+                      </small>
+                    )}
+                  </div>
                 </div>
                 <small>
                   전용 {l.area}㎡ · {l.floor} · {l.dir} · {shortDate(l.date)} 등록
@@ -104,6 +157,24 @@ export default function Listings() {
               </li>
             ))}
           </ul>
+          {goneList.length > 0 && (
+            <>
+              <h2 className="gone-h">사라진 매물 {goneList.length}건 (거래완료·광고종료 추정)</h2>
+              <ul className="list gone">
+                {goneList.slice(0, 30).map((l) => (
+                  <li key={l.id} className="card line">
+                    <div className="grow">
+                      <b>{l.complex}</b>
+                      <small>
+                        {l.deal} · 전용 {l.area}㎡ · {l.floor} · {shortDate(l.gone!)} 사라짐
+                      </small>
+                    </div>
+                    <b className="price">{listingPrice(l)}</b>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </section>
       ) : (
         <>
@@ -137,9 +208,11 @@ export default function Listings() {
         <ImportSheet
           onClose={() => setImporting(false)}
           onDone={(items) => {
-            setListings((p) => [...items, ...p.filter((l) => l.src)]) // 샘플은 제거
+            const m = mergeListings(listings, items)
+            setListings(m.list)
+            if (trades.length) localStorage.setItem('seenTrades', JSON.stringify(trades.map((t) => t.id)))
             setImporting(false)
-            toast(`매물 ${items.length}건을 가져왔습니다`)
+            toast(`매물 ${items.length}건 수집 · 신규 ${m.added} · 가격변동 ${m.changed} · 사라짐 ${m.gone}`)
           }}
         />
       )}
@@ -157,6 +230,7 @@ export default function Listings() {
   )
 }
 
+const STALE_DAYS = 3 // 이 날수가 지나면 다시 수집하라고 알린다
 const DEAL_SET: Deal[] = ['매매', '전세', '월세']
 const KIND_SET: Kind[] = ['아파트', '오피스텔', '빌라', '상가']
 
@@ -166,6 +240,24 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: (items:
   const [shots, setShots] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const input = useRef<HTMLInputElement>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  /** PC 수집기 파일: 바로 인식되면 그대로 가져오고, 형식을 못 알아보면 화면 글을 AI 에 맡긴다 */
+  const loadFile = async (file?: File) => {
+    if (!file) return
+    let data: CollectorFile
+    try {
+      data = JSON.parse(await file.text())
+    } catch {
+      return toast('수집기에서 저장한 파일이 아닙니다')
+    }
+    const items = parseCollectorFile(data)
+    if (items.length) return onDone(items)
+    if (data.pageText?.trim()) {
+      setText(data.pageText)
+      toast('매물 형식을 바로 알아보지 못했습니다. 아래 버튼으로 AI 정리를 해 주세요.')
+    } else toast('파일에서 매물을 찾지 못했습니다')
+  }
 
   const addShots = async (files: FileList | null) => {
     if (!files) return
@@ -192,6 +284,7 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: (items:
           date: today(),
           src: 'import',
         }))
+        .map((l) => ({ ...l, key: `${l.complex}|${l.deal}|${l.area}|${l.floor}`, group: l.complex.replace(/\s*\d+동$/, '') }))
       if (!items.length) return toast('매물을 찾지 못했습니다. 목록이 잘 보이게 다시 시도해 주세요.')
       onDone(items)
     } catch (e) {
@@ -214,6 +307,33 @@ function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: (items:
       <p className="hint">
         네이버 부동산 등에서 보고 있는 매물 목록을 <b>화면 캡처</b>하거나 <b>글을 길게 눌러 복사</b>해서 넣어 주세요. AI가 단지·가격·면적·층을 표로 정리합니다.
       </p>
+      <details className="pc-box">
+        <summary>PC에서 네이버 매물 한 번에 가져오기</summary>
+        <ol>
+          <li>
+            PC 크롬에서 이 앱을 열고, 아래 버튼을 <b>즐겨찾기 막대로 끌어다 놓습니다</b>. (막대가 안 보이면 Ctrl+Shift+B)
+            <a className="bookmarklet" ref={(el) => el?.setAttribute('href', BOOKMARKLET)} onClick={(e) => e.preventDefault()}>
+              매물 수집기
+            </a>
+          </li>
+          <li>네이버 부동산에서 원하는 지역을 열고, 즐겨찾기의 <b>매물 수집기</b>를 누릅니다.</li>
+          <li>단지를 누르거나 매물 목록을 아래로 내리면 화면에 뜨는 매물이 모입니다.</li>
+          <li><b>파일로 저장</b>을 누른 뒤, 그 파일을 아래에서 선택합니다.</li>
+        </ol>
+        <button className="btn ghost block-btn" onClick={() => fileInput.current?.click()}>
+          수집 파일 선택 (.json)
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,application/json"
+          hidden
+          onChange={(e) => {
+            loadFile(e.target.files?.[0])
+            e.target.value = ''
+          }}
+        />
+      </details>
       <h3 className="sub-h">화면 캡처 (최대 6장)</h3>
       <div className="photos">
         {shots.map((s, i) => (

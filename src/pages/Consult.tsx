@@ -175,7 +175,7 @@ export default function ConsultPage({ intent, clearIntent }: PageProps) {
 
 function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void }) {
   const { settings, listings } = useData()
-  const matches = useMemo(() => recommend(consult, listings), [consult, listings])
+  const matches = useMemo(() => recommend(consult, listings.filter((l) => !l.gone)), [consult, listings])
   const [picked, setPicked] = useState<Set<string>>(() => new Set(matches.slice(0, 3).map((m) => m.listing.id)))
   const [busy, setBusy] = useState(false)
   // 선택 모드: 뒤로가기를 누르면 창을 닫기 전에 선택부터 해제

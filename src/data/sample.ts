@@ -36,6 +36,15 @@ export interface Listing {
   desc: string
   date: string
   src?: 'import' // 직접 가져온 매물 (없으면 샘플)
+  // ── 누적 수집 기록 ──
+  key?: string // 같은 매물인지 알아보는 값 (네이버 매물번호 등)
+  group?: string // 단지 이름 (동 제외)
+  firstSeen?: string // 처음 수집한 날
+  lastSeen?: string // 마지막으로 확인된 날
+  newAt?: string // 이전에 수집한 단지에 새로 나온 날
+  prevPrice?: number // 가격이 바뀌기 전 값
+  changedAt?: string // 가격 변동을 확인한 날
+  gone?: string // 다시 수집했을 때 사라진 날 (거래완료·광고종료 추정)
 }
 export interface Consult {
   id: string
