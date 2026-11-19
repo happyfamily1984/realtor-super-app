@@ -28,7 +28,7 @@ npm run build    # 배포용 빌드 (dist/)
 | --- | --- |
 | `MOLIT_SERVICE_KEY` | 공공데이터포털 "국토교통부_아파트 매매 실거래가 자료" 인증키 |
 | `GEMINI_API_KEYS` | 제미나이 키 여러 개를 쉼표로 구분 (`키1,키2,키3`). 한도를 다 쓴 키는 건너뛰고 다음 키 사용 |
-| `GEMINI_MODEL` | (선택) 모델 이름. 기본값 `gemini-flash-latest` |
+| `GEMINI_MODELS` | (선택) 쉼표로 구분한 모델 순서. 기본값 `gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-flash-lite-latest,gemini-3.8-flash` — 한 모델에서 모든 키의 한도가 끝나면 다음 모델 사용 |
 | `APP_PASSCODE` | (선택·권장) 접속 암호. 설정하면 앱의 홈 > 설정에 같은 암호를 넣어야 서버 기능이 동작 |
 
 | 주소 | 내용 |
