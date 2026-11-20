@@ -114,6 +114,7 @@ cd android && ./build.sh <배포 주소> <서명 키 파일> <암호>
 - `src/App.tsx` — 하단 메뉴, 종료 확인
 - `api/` — 서버 기능 (실거래·뉴스·AI)
 - `src/lib/api.ts` — 서버 기능 호출
+- `src/data/regions.json` — 전국 시도·시군구·읍면동 (국토교통부 법정동코드, 공공데이터포털 15123287 에서 생성)
 - `src/lib/nav.ts` — 뒤로가기 규칙 (창·선택 모드 취소 → 이전 화면 → 홈에서 종료 확인)
 - `src/lib/cardnews.ts` — 카드뉴스 이미지 생성
 - `src/lib/design.ts` — 고객용 자료 디자인 체계

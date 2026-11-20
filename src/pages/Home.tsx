@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Field, Icon, Sheet, useData, type Intent, type Tab } from '../components/ui'
-import { SEOUL_GU } from '../data/sample'
+import RegionPicker from '../components/RegionPicker'
 import { upcoming } from '../lib/match'
 import { dday, koDate, today, toast, won } from '../lib/util'
 
@@ -121,29 +121,12 @@ export default function Home({ go }: { go: (t: Tab, i?: Intent) => void }) {
           <Field label="사무소 이름">
             <input value={draft.office} onChange={(e) => setDraft({ ...draft, office: e.target.value })} />
           </Field>
-          <Field label="담당 지역 이름 (카드뉴스·PPT 에 표시)">
+          <h3 className="sub-h">담당 지역</h3>
+          <RegionPicker lawdCd={draft.lawdCd} dong={draft.dong} onChange={(v) => setDraft((d) => ({ ...d, lawdCd: v.lawdCd, dong: v.dong, region: v.name }))} />
+          <Field label="지역 이름 (카드뉴스·제안서에 표시, 고쳐 쓸 수 있음)">
             <input value={draft.region} onChange={(e) => setDraft({ ...draft, region: e.target.value })} />
           </Field>
-          <h3 className="sub-h">실거래 조회 지역</h3>
-          <Field label="지역 선택 (목록에 없으면 아래에 코드 입력)">
-            <select value={SEOUL_GU.some(([, c]) => c === draft.lawdCd) ? draft.lawdCd : ''} onChange={(e) => e.target.value && setDraft({ ...draft, lawdCd: e.target.value })}>
-              <option value="">직접 입력</option>
-              {SEOUL_GU.map(([n, c]) => (
-                <option key={c} value={c}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <div className="row">
-            <Field label="시군구 코드 (5자리)">
-              <input inputMode="numeric" maxLength={5} value={draft.lawdCd} onChange={(e) => setDraft({ ...draft, lawdCd: e.target.value })} />
-            </Field>
-            <Field label="동 이름 (비우면 전체)">
-              <input value={draft.dong} onChange={(e) => setDraft({ ...draft, dong: e.target.value })} placeholder="예: 아현동" />
-            </Field>
-          </div>
-          <p className="hint">시군구 코드는 법정동코드 앞 5자리입니다. (예: 안양시 동안구 41173)</p>
+          <p className="hint">실거래와 뉴스는 여기서 고른 지역 기준으로 가져옵니다. 동을 ‘전체’로 두면 시·군·구 전체를 봅니다.</p>
           <h3 className="sub-h">내 매물 중복 광고 확인</h3>
           <Field label="네이버에 표시되는 우리 사무소 이름 (비우면 위 사무소 이름)">
             <input value={draft.myRealtor} onChange={(e) => setDraft({ ...draft, myRealtor: e.target.value })} />
