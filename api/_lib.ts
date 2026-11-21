@@ -22,7 +22,7 @@ export function handler(fn: (req: Req) => Promise<unknown>, cacheSeconds = 0, op
   return async (req: Req, res: Res) => {
     try {
       const pass = process.env.APP_PASSCODE
-      if (!open && pass && req.headers['x-app-code'] !== encodeURIComponent(pass)) throw new HttpError(401, '접속 암호가 맞지 않습니다. 홈 > 설정에서 입력해 주세요.')
+      if (!open && pass && req.headers['x-app-code'] !== encodeURIComponent(pass)) throw new HttpError(401, '접속 암호가 맞지 않습니다. 더보기 > 사무소 설정에서 입력해 주세요.')
       const data = await fn(req)
       if (cacheSeconds) res.setHeader('Cache-Control', `private, max-age=${cacheSeconds}`)
       res.status(200).json(data)
