@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { matchComplex, normalizeItem, parseDetail, searchCourt } from '../collector/auction.js';
+import { parsePrice, normalizeListing, summarizeListings, listingInsights } from '../collector/listings.js';
 import { analyze, dealsOf, insights, complexPost, auctionPost, refFor, complexId } from '../collector/main.js';
 
 const cfg = JSON.parse(readFileSync(new URL('../config/main-complexes.json', import.meta.url), 'utf8'));
@@ -97,4 +98,19 @@ test('올릴 글: 단지 분석과 경매 (스레드 500자 이내, 블로그 �
   assert.match(q.blog.title, /한가람신라 45\.8㎡ 경매 \| 최저가 3\.83억, 매각기일 12월 1일 \(2025타경101547\)/);
   assert.equal(q.cards.length, 3);
   assert.ok(q.talk.split('\n').length <= 4);
+});
+
+test('네이버 매물: 금액 글자 읽기, 호가 요약과 실거래 대비', () => {
+  assert.deepEqual(['6억 7,000', '67000', 67000, '9,500만', '4.5억', '12억'].map(parsePrice), [67000, 67000, 67000, 9500, 45000, 120000]);
+  assert.deepEqual([normalizeListing({ type: '월세', area: '37.85㎡', price: '1,000/80' })].map((l) => [l.type, l.area, l.price, l.rent]), [['monthly', 37.85, 1000, 80]]);
+  assert.equal(normalizeListing({ type: '매매', price: '5억' }), null); // 면적 없음
+  const a = analyze(silla, dealsOf(silla, DEALS), '2026-11-21');
+  const items = [{ type: '매매', area: 45.8, price: '4억 8,000' }, { type: '매매', area: 45.8, price: 50000 }, { type: '전세', area: 45.8, price: '2억 5,000' }].map(normalizeListing);
+  const s = summarizeListings({ capturedAt: '2026-11-20', source: '네이버 부동산', items }, a, '2026-11-21');
+  assert.equal(s.stale, false);
+  const t = s.rows.find((r) => r.type === 'trade');
+  assert.deepEqual([t.area, t.count, t.min, t.median, t.dealMedian, t.gapPct], [46, 2, 48000, 49000, 45000, 8.9]);
+  assert.match(listingInsights(s)[1], /매매 호가 전용 46㎡: 4\.8억~5억 \(2건, 중간 4\.9억\) · 실거래 중간값보다 \+8\.9%/);
+  assert.equal(summarizeListings({ capturedAt: '2026-11-01', source: 'x', items }, a, '2026-11-21').stale, true);
+  assert.ok(complexPost(silla, a, '2026-11-21', listingInsights(s)).blog.body.includes('■ 지금 나와 있는 매물 (호가)'));
 });

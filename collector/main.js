@@ -87,7 +87,7 @@ export function insights(cfg, a) {
 const tagsOf = (cfg, extra = []) => [...new Set([cfg.name.replace(/\s+/g, ''), cfg.region.split(' ').at(-1), cfg.umdNm, '평촌', ...extra].filter(Boolean))];
 
 /** 단지 분석을 올릴 글로 (보고서함과 같은 꼴: thread · talk · blog · cards) */
-export function complexPost(cfg, a, today) {
+export function complexPost(cfg, a, today, askLines = []) {
   const lines = insights(cfg, a);
   const kind = cfg.kind === 'offi' ? '오피스텔' : '아파트';
   const head = `${cfg.name} 실거래 정리 (${today.slice(0, 7).replace('-', '년 ')}월)`;
@@ -101,6 +101,7 @@ export function complexPost(cfg, a, today) {
     `■ 면적별 매매가\n${a.areas.filter((x) => x.trade.count12 > 0).map((x) => `- 전용 ${x.area}㎡: 중간값 ${eok(x.trade.median12)}, ${eok(x.trade.min12)}~${eok(x.trade.max12)} (${x.trade.count12}건)${x.trade.changePct != null ? `, 1년 전 대비 ${x.trade.changePct > 0 ? '+' : ''}${x.trade.changePct}%` : ''}`).join('\n') || '최근 1년 매매 신고가 없습니다.'}`,
     `■ 전세와 전세가율\n${a.areas.filter((x) => x.jeonse.count12 > 0).map((x) => `- 전용 ${x.area}㎡: 전세 중간값 ${eok(x.jeonse.median12)} (${x.jeonse.count12}건)${x.jeonseRate ? `, 전세가율 ${x.jeonseRate}%` : ''}`).join('\n') || '최근 1년 전세 신고가 없습니다.'}`,
     recent.length ? `■ 최근 매매 내역\n${recent.join('\n')}` : null,
+    askLines.length ? `■ 지금 나와 있는 매물 (호가)\n${askLines.map((l) => `- ${l}`).join('\n')}\n호가는 집주인이 부르는 값이라 실제 거래가와 다를 수 있습니다.` : null,
     `■ 한눈에 정리\n${lines.map((l) => `- ${l}`).join('\n')}`,
     `실거래가는 계약 후 30일 안에 신고되므로 최근 거래는 아직 반영되지 않았을 수 있습니다. (${today} 기준)`,
   ].filter(Boolean).join('\n\n');
