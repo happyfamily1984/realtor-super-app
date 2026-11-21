@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { matchComplex, normalizeItem, parseDetail, searchCourt } from '../collector/auction.js';
-import { parsePrice, normalizeListing, summarizeListings, listingInsights, dedupe, suspectPrompt } from '../collector/listings.js';
+import { parsePrice, normalizeListing, summarizeListings, listingInsights, dedupe, suspectPrompt, expectedDate } from '../collector/listings.js';
 import { analyze, dealsOf, insights, complexPost, auctionPost, refFor, complexId } from '../collector/main.js';
 
 const cfg = JSON.parse(readFileSync(new URL('../config/main-complexes.json', import.meta.url), 'utf8'));
@@ -110,7 +110,7 @@ test('네이버 매물: 금액 글자 읽기, 호가 요약과 실거래 대비'
   assert.deepEqual([normalizeListing({ type: '전세', area: 50, price: 30000 })].map((l) => [l.price, l.priceMax, l.rent]), [[30000, 30000, 0]]);
   const a = analyze(silla, dealsOf(silla, DEALS), '2026-11-21');
   const items = [{ type: '매매', area: 45.8, price: '4억 8,000' }, { type: '매매', area: 45.8, price: 50000 }, { type: '전세', area: 45.8, price: '2억 5,000' }].map(normalizeListing);
-  const s = summarizeListings({ capturedAt: '2026-11-20', source: '네이버 부동산', items }, a, '2026-11-21');
+  const s = summarizeListings({ capturedAt: '2026-11-20', source: '네이버 부동산', items }, a, '2026-11-21', '2026-11-20');
   assert.equal(s.stale, false);
   const t = s.rows.find((r) => r.type === 'trade');
   assert.deepEqual([t.area, t.count, t.min, t.median, t.dealMedian, t.gapPct], [46, 2, 48000, 49000, 45000, 8.9]);
@@ -118,7 +118,12 @@ test('네이버 매물: 금액 글자 읽기, 호가 요약과 실거래 대비'
   // 네이버 표기 45㎡(소수점 버림)도 실거래 45.8㎡(46㎡)와 같은 면적으로 묶임
   const cut = summarizeListings({ capturedAt: '2026-11-20', source: 'x', items: [normalizeListing({ type: '매매', area: 45, price: '5억' })] }, a, '2026-11-21');
   assert.deepEqual([cut.rows[0].area, cut.rows[0].dealMedian], [46, 45000]);
-  assert.equal(summarizeListings({ capturedAt: '2026-11-01', source: 'x', items }, a, '2026-11-21').stale, true);
+  // 매일 10:30(한국 시각)까지 들어와야 함: 그 전에는 어제 치면 최신, 지나면 오늘 치여야 최신
+  assert.equal(expectedDate(new Date('2026-11-21T01:00:00Z')), '2026-11-20'); // 10:00
+  assert.equal(expectedDate(new Date('2026-11-21T01:30:00Z')), '2026-11-21'); // 10:30
+  assert.equal(summarizeListings({ capturedAt: '2026-11-20', source: 'x', items }, a, '2026-11-21', '2026-11-20').stale, false);
+  assert.equal(summarizeListings({ capturedAt: '2026-11-20', source: 'x', items }, a, '2026-11-21', '2026-11-21').stale, true);
+  assert.match(listingInsights(summarizeListings({ capturedAt: '2026-11-20', source: 'x', items }, a, '2026-11-21', '2026-11-21'))[0], /오늘 치가 아직 안 들어옴/);
   assert.ok(complexPost(silla, a, '2026-11-21', listingInsights(s)).blog.body.includes('■ 지금 나와 있는 매물 (호가)'));
 });
 
