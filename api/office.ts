@@ -1,5 +1,5 @@
 // 사무소(중개사 슈퍼앱)용 기능. 접속 암호(APP_PASSCODE)로 보호된다.
-import { hallJ, hgetJ, hsetJ, idOk, listJ, newId, pushJ, redis, saveImage, setJ, unshiftJ } from './_db.js'
+import { getJ, hallJ, hgetJ, hsetJ, idOk, listJ, newId, pushJ, redis, saveImage, setJ, unshiftJ } from './_db.js'
 import { handler, HttpError, q } from './_lib.js'
 import { publicKey, subscribe, toAllCustomers, toCustomer } from './_push.js'
 
@@ -50,7 +50,7 @@ export default handler(async (req) => {
       for (const d of (Array.isArray(b.images) ? b.images : []).slice(0, 10)) images.push(await saveImage(String(d)))
       const post = { id: newId(), title, body: str(b.body, 4000), images, kind: str(b.kind, 20) || '정보', at: Date.now() }
       await unshiftJ('posts', post, 200)
-      if (b.office) await setJ('profile', { office: str(b.office, 40) })
+      if (b.office) await setJ('profile', { ...((await getJ<object>('profile')) ?? {}), office: str(b.office, 40) })
       const sent = await toAllCustomers({ title, body: post.body.slice(0, 80) || '새 소식이 도착했습니다', url: `/customer.html?post=${post.id}`, tag: 'post' })
       return { post, sent }
     }
@@ -63,6 +63,12 @@ export default handler(async (req) => {
       return { ok: true }
     }
 
+    // 사무소 이름·메인 단지를 손님용 앱에도 알려 준다
+    case 'profile': {
+      const main = (Array.isArray(b.main) ? b.main : []).slice(0, 30).map((m: any) => ({ name: str(m.name, 40), kind: str(m.kind, 10), aliases: (Array.isArray(m.aliases) ? m.aliases : []).slice(0, 5).map((x: unknown) => str(x, 40)) }))
+      await setJ('profile', { office: str(b.office, 40), main })
+      return { ok: true }
+    }
     case 'vapid':
       return { key: await publicKey() }
     case 'subscribe':

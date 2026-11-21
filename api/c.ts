@@ -6,7 +6,7 @@ import { publicKey, subscribe, toOffice } from './_push.js'
 import { fetchTrades } from './trades.js'
 
 /** 실거래 알림을 받을 수 있는 지역 */
-export const REGIONS: Record<string, string> = { '41173': '안양시 동안구', '41171': '안양시 만안구', '41290': '과천시' }
+export const REGIONS: Record<string, string> = { '41173': '안양시 동안구' }
 
 const str = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max)
 
@@ -40,20 +40,20 @@ export default handler(
     switch (a) {
       // 소식 (사무소가 내보낸 카드뉴스·정보)
       case 'feed':
-        return { posts: await listJ('posts', 0, 29), office: (await getJ<{ office: string }>('profile'))?.office ?? '' }
+        return { posts: await listJ('posts', 0, 29), office: (await getJ<{ office?: string }>('profile'))?.office ?? '' }
 
       // 실거래 알림
       case 'complexes': {
         const lawd = q(req, 'lawd')
         const rows = await regionTrades(lawd)
-        const m = new Map<string, { complex: string; dong: string; n: number; last: string; price: number }>()
+        const m = new Map<string, { complex: string; dong: string; kind: string; n: number; last: string; price: number }>()
         for (const r of rows) {
-          const k = `${r.dong}|${r.complex}`
+          const k = `${r.kind}|${r.dong}|${r.complex}`
           const c = m.get(k)
           if (c) c.n++
-          else m.set(k, { complex: r.complex, dong: r.dong, n: 1, last: r.date, price: r.price })
+          else m.set(k, { complex: r.complex, dong: r.dong, kind: r.kind, n: 1, last: r.date, price: r.price })
         }
-        return { region: REGIONS[lawd], complexes: [...m.values()].sort((x, y) => x.complex.localeCompare(y.complex, 'ko')) }
+        return { region: REGIONS[lawd], main: (await getJ<{ main?: unknown[] }>('profile'))?.main ?? [], complexes: [...m.values()].sort((x, y) => x.complex.localeCompare(y.complex, 'ko')) }
       }
       case 'watch':
         return { items: (await hgetJ<unknown[]>('watch', need())) ?? [], alerts: await listJ(`alerts:${need()}`, 0, 29) }
