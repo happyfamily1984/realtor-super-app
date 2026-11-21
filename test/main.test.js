@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { matchComplex, normalizeItem, parseDetail, searchCourt } from '../collector/auction.js';
-import { parsePrice, normalizeListing, summarizeListings, listingInsights } from '../collector/listings.js';
+import { parsePrice, normalizeListing, summarizeListings, listingInsights, dedupe, suspectPrompt } from '../collector/listings.js';
 import { analyze, dealsOf, insights, complexPost, auctionPost, refFor, complexId } from '../collector/main.js';
 
 const cfg = JSON.parse(readFileSync(new URL('../config/main-complexes.json', import.meta.url), 'utf8'));
@@ -119,4 +119,16 @@ test('네이버 매물: 금액 글자 읽기, 호가 요약과 실거래 대비'
   assert.deepEqual([cut.rows[0].area, cut.rows[0].dealMedian], [46, 45000]);
   assert.equal(summarizeListings({ capturedAt: '2026-11-01', source: 'x', items }, a, '2026-11-21').stale, true);
   assert.ok(complexPost(silla, a, '2026-11-21', listingInsights(s)).blog.body.includes('■ 지금 나와 있는 매물 (호가)'));
+});
+
+test('네이버 매물 중복: 매물번호가 같으면 하나로, 다르면 둘 다, 비어 있으면 의심으로 표시', () => {
+  const base = { type: '매매', area: 66, price: '3억 9,500', floor: '27/42', dong: 'A동' };
+  const n = (o) => normalizeListing({ ...base, ...o });
+  assert.equal(dedupe([n({ articleNo: '1' }), n({ articleNo: '1' })]).length, 1);
+  assert.deepEqual(dedupe([n({ articleNo: '1' }), n({ articleNo: '2' })]).map((l) => l.suspect), [false, false]);
+  assert.deepEqual(dedupe([n({}), n({})]).map((l) => l.suspect), [true, true]);
+  assert.deepEqual(dedupe([n({}), n({ floor: '3/42' })]).map((l) => l.suspect), [false, false]); // 층이 다르면 다른 집
+  const text = suspectPrompt({ '평촌아크로타워 → acro-tower.json': dedupe([n({}), n({}), n({ floor: '3/42' })]) });
+  assert.match(text, /■ 평촌아크로타워 → acro-tower\.json \(2건\)\n- 매매 · 전용 66㎡ · A동 · 27\/42층 · 3\.95억/);
+  assert.equal(suspectPrompt({ a: dedupe([n({ articleNo: '1' })]) }), '');
 });

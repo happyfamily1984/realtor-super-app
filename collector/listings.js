@@ -33,6 +33,28 @@ export function normalizeListing(l) {
   };
 }
 
+const sameKey = (l) => [l.type, l.area, l.price, l.rent, l.floor, l.dong].join('|');
+
+/**
+ * 중복 정리. 거래·면적·가격·층·동이 모두 같은 매물끼리:
+ *  - 매물번호가 같으면 같은 집 → 하나만 남김
+ *  - 매물번호가 서로 다르면 다른 집 → 둘 다 둠
+ *  - 매물번호가 비어 있으면 가려낼 수 없음 → 그대로 두고 suspect 표시 (다음에 이 매물들만 매물번호를 받아 오면 됨)
+ */
+export function dedupe(items) {
+  const groups = new Map();
+  for (const l of items) { const k = sameKey(l); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(l); }
+  const out = [];
+  for (const g of groups.values()) {
+    const seen = new Set();
+    const kept = g.filter((l) => { if (!l.articleNo) return true; if (seen.has(l.articleNo)) return false; seen.add(l.articleNo); return true; });
+    const blank = kept.filter((l) => !l.articleNo);
+    const suspect = kept.length > 1 && blank.length > 0; // 번호 없는 것이 섞여 있으면 아직 모름
+    out.push(...kept.map((l) => ({ ...l, suspect: suspect && (!l.articleNo || blank.length > 0) && !l.articleNo })));
+  }
+  return out;
+}
+
 /** inbox/naver 의 파일을 읽어 단지 id → { capturedAt, source, items } */
 export function readInbox(dir) {
   const out = {}, problems = [];
@@ -41,7 +63,7 @@ export function readInbox(dir) {
     try {
       const j = JSON.parse(readFileSync(join(dir, f), 'utf8'));
       const raw = j.listings ?? j.매물 ?? [];
-      const items = raw.map(normalizeListing).filter(Boolean);
+      const items = dedupe(raw.map(normalizeListing).filter(Boolean));
       if (raw.length !== items.length) problems.push(`${f}: 매물 ${raw.length}건 중 ${raw.length - items.length}건은 거래·전용면적·가격이 없어 뺌`);
       out[f.replace(/\.json$/, '')] = { capturedAt: String(j.capturedAt ?? j.받은날 ?? ''), source: String(j.source ?? '네이버 부동산'), items };
     } catch (e) { problems.push(`${f}: 읽지 못함 (${e.message})`); }
@@ -68,13 +90,25 @@ export function summarizeListings(box, analysis, today) {
     const prices = ls.map((l) => l.price);
     return { type, area, count: ls.length, min: Math.min(...prices), median: median(prices), max: Math.max(...prices), medianRent: type === 'monthly' ? median(ls.map((l) => l.rent)) : 0, dealMedian: base || 0, dealBasis: base ? (recent ? '최근 3개월' : '최근 1년') : '', gapPct: base ? Math.round((median(prices) / base - 1) * 1000) / 10 : null };
   }).sort((p, q) => p.type.localeCompare(q.type) * -1 || p.area - q.area);
-  return { capturedAt: box.capturedAt, source: box.source, daysOld: days, stale: days == null || days > 7, total: box.items.length, rows, items: box.items };
+  const suspects = box.items.filter((l) => l.suspect).length;
+  return { capturedAt: box.capturedAt, source: box.source, daysOld: days, stale: days == null || days > 7, total: box.items.length, suspects, rows, items: box.items };
 }
 
 const LABEL = { trade: '매매', jeonse: '전세', monthly: '월세' };
 export function listingInsights(s) {
   if (!s.total) return [];
-  const head = `매물(호가) ${s.total}건 · ${s.source} ${s.capturedAt || '날짜 없음'} 기준${s.stale ? ' (7일 넘음, 새로 받아야 함)' : ''}`;
+  const head = `매물(호가) ${s.total}건 · ${s.source} ${s.capturedAt || '날짜 없음'} 기준${s.stale ? ' (7일 넘음, 새로 받아야 함)' : ''}${s.suspects ? ` · 중복 의심 ${s.suspects}건 포함` : ''}`;
   return [head, ...s.rows.filter((r) => r.type !== 'monthly').slice(0, 6).map((r) =>
     `${LABEL[r.type]} 호가 전용 ${r.area}㎡: ${eok(r.min)}~${eok(r.max)} (${r.count}건, 중간 ${eok(r.median)})${r.gapPct != null ? ` · ${r.dealBasis} 실거래 중간값 ${eok(r.dealMedian)}보다 ${r.gapPct > 0 ? '+' : ''}${r.gapPct}%` : ''}`)];
+}
+
+/** 중복 의심 매물만 뽑아, 매물번호를 받아 오라고 시킬 글로 */
+export function suspectPrompt(byComplex) {
+  const blocks = Object.entries(byComplex).map(([name, items]) => {
+    const ls = items.filter((l) => l.suspect);
+    return ls.length ? `■ ${name} (${ls.length}건)\n` + [...new Set(ls.map((l) => `- ${LABEL[l.type]} · 전용 ${l.area}㎡ · ${l.dong} · ${l.floor}층 · ${eok(l.price)}${l.rent ? `/${l.rent}` : ''}`))].join('\n') : null;
+  }).filter(Boolean);
+  if (!blocks.length) return '';
+  return ['아래 매물은 거래·면적·가격·층·동이 완전히 같아 같은 집이 중복으로 들어간 것인지 확인이 필요해.', '브라우저로 네이버 부동산 화면을 직접 열어, 아래 조건에 맞는 매물마다 매물번호를 확인해줘. (API·크롤링 금지)',
+    '그리고 저장소 inbox/naver 의 그 단지 파일에서 해당 매물의 "articleNo"만 채워서 다시 저장해줘. 다른 값은 바꾸지 마.', '같은 집이면 같은 매물번호, 다른 집이면 다른 매물번호가 들어가면 돼. 화면에서 못 찾은 매물은 그대로 둬.', '', ...blocks].join('\n');
 }
