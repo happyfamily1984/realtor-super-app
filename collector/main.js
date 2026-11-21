@@ -17,9 +17,9 @@ export function complexId(lawdCd, umdNm, jibun, aptNm) {
 }
 
 export function dealsOf(cfg, deals) {
-  return deals.filter((d) => (cfg.umdNm && cfg.jibun
-    ? d.umdNm === cfg.umdNm && d.jibun === cfg.jibun
-    : (cfg.words ?? []).some((ws) => ws.every((w) => norm(d.aptNm).includes(norm(w))))));
+  // 법정동+지번이 같거나, 이름에 낱말이 모두 들어 있으면 그 단지
+  return deals.filter((d) => (cfg.umdNm && cfg.jibun && d.umdNm === cfg.umdNm && d.jibun === cfg.jibun) ||
+    (cfg.words ?? []).some((ws) => ws.every((w) => norm(d.aptNm).includes(norm(w)))));
 }
 
 /** 한 단지의 실거래 분석. deals: 그 단지의 매매·전월세 (취소 포함), today: YYYY-MM-DD */
