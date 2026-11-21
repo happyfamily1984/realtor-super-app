@@ -1,11 +1,11 @@
 {
-  "note": "메인 단지. 실거래는 법정동+지번(오피스텔은 이름 낱말)으로, 경매는 법정동+지번 또는 이름 낱말로 찾음. 바꾸려면 이 파일을 고침.",
+  "note": "메인 단지. name은 앱·보고서에 쓰는 이름(국토부 이름과 달라도 됨: 공작부영아파트 = 국토부 공작아파트). 실거래는 법정동+지번(오피스텔은 이름 낱말)으로, 경매는 법정동+지번 또는 이름 낱말로 찾음. 바꾸려면 이 파일을 고침.",
   "court": { "code": "B000254", "name": "수원지방법원 안양지원" },
   "months": 36,
   "complexes": [
     { "id": "hillstate-pyeongchon", "name": "힐스테이트 평촌역 더퍼스트", "kind": "offi", "lawdCd": "41173", "region": "안양시 동안구", "umdNm": "", "jibun": "", "words": [["힐스테이트", "평촌역"]] },
     { "id": "acro-tower", "name": "평촌아크로타워", "kind": "offi", "lawdCd": "41173", "region": "안양시 동안구", "umdNm": "", "jibun": "", "words": [["아크로타워"]] },
-    { "id": "gongjak-buyoung", "name": "공작부영", "kind": "apt", "lawdCd": "41173", "region": "안양시 동안구", "umdNm": "관양동", "jibun": "1588", "words": [["공작", "부영"]] },
+    { "id": "gongjak-buyoung", "name": "공작부영아파트", "kind": "apt", "lawdCd": "41173", "region": "안양시 동안구", "umdNm": "관양동", "jibun": "1588", "words": [["공작", "부영"]] },
     { "id": "hangaram-segyeong", "name": "한가람세경", "kind": "apt", "lawdCd": "41173", "region": "안양시 동안구", "umdNm": "관양동", "jibun": "1589", "words": [["한가람", "세경"]] },
     { "id": "hangaram-silla", "name": "한가람신라", "kind": "apt", "lawdCd": "41173", "region": "안양시 동안구", "umdNm": "관양동", "jibun": "1589-1", "words": [["한가람", "신라"]] },
     { "id": "hangaram-hanyang", "name": "한가람한양", "kind": "apt", "lawdCd": "41173", "region": "안양시 동안구", "umdNm": "관양동", "jibun": "1586", "words": [["한가람", "한양"]] }
