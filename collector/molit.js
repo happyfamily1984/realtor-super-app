@@ -6,6 +6,9 @@ export const PROXY = process.env.DEAL_PROXY_URL || 'https://apt-alert.k-rebirth7
 const DIRECT = {
   trade: 'https://apis.data.go.kr/1613000/RTMSDataSvcAptTrade/getRTMSDataSvcAptTrade',
   rent: 'https://apis.data.go.kr/1613000/RTMSDataSvcAptRent/getRTMSDataSvcAptRent',
+  // 오피스텔 (중계 서버에는 아직 없음 → 국토부 키가 있어야 받음)
+  'offi-trade': 'https://apis.data.go.kr/1613000/RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade',
+  'offi-rent': 'https://apis.data.go.kr/1613000/RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent',
 };
 
 const REGIONS = JSON.parse(readFileSync(new URL('./regions.json', import.meta.url), 'utf8'));
@@ -54,10 +57,10 @@ const ymd = (it) => `${it.dealYear}-${String(it.dealMonth).padStart(2, '0')}-${S
 /** 금액은 모두 만원. 앱(Deals.kt)과 같은 이름을 씀 */
 export function normalize(api, it) {
   const base = {
-    aptNm: it.aptNm ?? '', umdNm: it.umdNm ?? '', jibun: it.jibun ?? '',
+    aptNm: it.aptNm ?? it.offiNm ?? '', umdNm: it.umdNm ?? '', jibun: it.jibun ?? '',
     buildYear: num(it.buildYear) || null, area: num(it.excluUseAr), floor: num(it.floor), date: ymd(it),
   };
-  if (api === 'trade') {
+  if (api.endsWith('trade')) {
     return {
       type: 'trade', ...base, price: num(it.dealAmount), dong: it.aptDong ?? '', dealingGbn: it.dealingGbn ?? '',
       canceled: (it.cdealType ?? '').trim() === 'O', cancelDate: it.cdealDay ?? '',
