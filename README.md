@@ -38,7 +38,7 @@ npm run build    # 배포용 빌드 (dist/)
 
 손님용 앱 메뉴: **소식**(사무소가 올린 소식) · **실거래**(안양시 동안구 아파트·오피스텔을 골라 새 실거래 알림) · **매물 내놓기** · **상담**(채팅)
 
-메인 단지 목록(손님용 앱의 추천 단지, 네이버 수집 매물의 메인 단지 보기)은 수집기와 같은 파일 `config/main-complexes.json` 에서 받습니다.
+메인 단지 목록은 매일 받는 네이버 매물 자료에 든 단지를 씁니다 (아래 "다른 저장소와의 관계").
 
 ## 서버 기능 (Vercel)
 
@@ -92,52 +92,11 @@ cd android && ./build.sh <배포 주소> <서명 키 파일> <암호> [버전 �
 - `src/lib/contractDoc.ts` — 계약서 초안, `src/lib/proposal.ts` · `design.ts` — 제안서, `src/lib/naverUpload.ts` — 네이버 등록 초안
 - `api/` — 서버 기능
 
----
+## 다른 저장소와의 관계
 
-# 메인 단지 자료 수집기
+시세 정리·뉴스·보고서 같은 정보성 기능과 메인 단지 자료 수집기는 뉴스파인더 저장소(`real-estate-news-finder`)가 맡습니다. 이 저장소에는 수집기가 없습니다.
 
-아래는 `collector/` 수집기 설명입니다. 수집은 `main` 브랜치에서만 돕니다.
+이 앱은 그쪽 수집 결과 중 매일 받는 네이버 매물만 읽습니다 (`src/lib/naverDaily.ts`).
 
-메인 단지의 실거래·경매·네이버 매물 자료를 어떻게 모으고 앱에서 어떻게 받아 쓰는지는 **[docs/my-data.md](docs/my-data.md)** 에 정리돼 있습니다.
-
-## 공용 임시저장소 (`store` 브랜치)
-
-보고서를 쓸 때 근거로 쓸 자료를 모아 두는 곳입니다. 부동산뉴스파인더의 보고서함(`reports/reports.json`)에 올리는
-보고서는 여기 모인 자료의 숫자만 씁니다.
-
-| 자료 | 경로 | 받는 곳 |
-| --- | --- | --- |
-| 아파트 매매 실거래 | `molit/trade/<시군구코드>/<YYYYMM>.json` | 국토교통부 실거래가 API |
-| 아파트 전월세 실거래 | `molit/rent/<시군구코드>/<YYYYMM>.json` | 국토교통부 실거래가 API |
-| 메인 단지 분석·경매 | `main/my.json` | 위 실거래 + 법원경매정보 (3시간마다) |
-| 법원 진행 물건 전체 | `auction/<법원코드>.json` | 법원경매정보 |
-| 목록 | `index.json` | 어떤 자료가 언제 받아졌는지 |
-
-- 파일 꼴: `{ kind, source, region, regionName, ym, fetchedAt, count, rows: [...] }`. 금액은 모두 만원.
-  `rows`의 이름은 부동산뉴스파인더 앱(`Deals.kt`)과 같습니다 (`aptNm, umdNm, area, floor, date, price, deposit, monthlyRent, canceled …`).
-- 임시 자료입니다. 받은 지 30일이 지나면 지워집니다. 이번 달·지난달은 6시간, 그 전 달은 7일이 지나야 새로 받습니다.
-- 국토부 키는 저장소에 두지 않습니다. 키(`MOLIT_API_KEY` 시크릿)가 없으면 부동산뉴스파인더 앱과 같은 중계 서버를 거칩니다.
-
-### 모으기
-
-깃허브 Actions의 **collect**를 실행합니다 (시군구, 최근 몇 달, 종류). 끝나면 `store` 브랜치에 올라갑니다.
-
-직접 돌릴 때:
-
-```
-node collector/collect.js molit --regions "강남구,성남시 분당구" --months 6
-node collector/collect.js summary --regions 강남구 --months 6 --apt 은마          # 단지·면적별 건수·중간값·최고가
-node collector/collect.js summary --regions 강남구 --months 6 --type jeonse
-node collector/collect.js list
-npm test
-```
-
-### 메인 단지
-
-`config/main-complexes.json`에 적은 단지를 3시간마다 깊게 봅니다.
-
-- 실거래 3년치를 면적별로 분석 (최근 1년 건수·중간값·최저·최고, 1년 전 대비, 전세가율, 월세, 최고가, 최근 내역)
-- 관할 법원의 진행 물건 가운데 메인 단지 물건을 골라 상세(인수 권리, 기일, 감정평가 요점)까지 받음
-- 단지 분석과 경매 물건마다 스레드·오픈톡·블로그·카드뉴스용 글을 미리 만들어 둠 (`post`, 보고서함과 같은 꼴)
-- 오피스텔 실거래는 중계 서버에 없어 `MOLIT_API_KEY` 시크릿(오피스텔 매매·전월세 API 활용신청)이 있을 때만 받음
-- 법원경매정보는 한국 밖에서 열리지 않아 깃허브 Actions에서만 돎: `node collector/collect.js main --auction false`로 실거래만 볼 수 있음
+- 메인 단지 목록 (손님용 앱의 추천 단지, 네이버 수집 매물의 메인 단지 보기)
+- 내 매물과 비슷한 광고 확인: 같은 단지에서 거래 종류·면적·동·층·가격이 비슷한 광고를 찾아 보여 주고, 새로 올라온 것만 알립니다. 호수가 나오지 않아 같은 집이라고 단정할 수는 없습니다.

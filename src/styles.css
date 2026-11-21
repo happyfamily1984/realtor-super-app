@@ -296,3 +296,4 @@ select { width: 100%; border: 1px solid #cfd4cd; border-radius: 11px; padding: 1
 .menu-row > svg:first-child { color: var(--brand); }
 .posts-list { margin-top: 4px; }
 .filters > input { min-height: 44px; }
+.sim-list { margin-bottom: 14px; }

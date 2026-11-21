@@ -1,4 +1,4 @@
-// 메인 단지: 사무소가 주로 다루는 단지. 실제 목록은 main 브랜치의 config/main-complexes.json 에서 받아 쓰고(lib/mainConfig.ts),
+// 메인 단지: 사무소가 주로 다루는 단지. 실제 목록은 매일 받는 네이버 매물 자료(뉴스파인더 저장소)에 든 단지를 쓰고(lib/naverDaily.ts),
 // 아래 DEFAULT_MAIN 은 그 파일을 못 받았을 때만 쓴다.
 // 메인 단지: 브리핑·매물·손님용 앱이 이 단지를 중심으로 보여 준다.
 export interface MainComplex {
