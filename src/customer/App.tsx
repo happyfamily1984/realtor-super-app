@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import IntakeForm from '../components/IntakeForm'
 import { Chips, Confirm, Field, Icon, Sheet } from '../components/ui'
 import { blankIntake, type Intake } from '../data/intake'
-import { DEFAULT_MAIN, matchMain, type MainComplex } from '../data/main'
+import { DEFAULT_MAIN, displayName, matchMain, type MainComplex } from '../data/main'
 import { api } from '../lib/api'
 import { exitApp, initNav, stayInApp, useBackLayer } from '../lib/nav'
 import { deviceId, enablePush, pushState } from '../lib/push'
@@ -17,6 +17,11 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'chat', label: '상담', icon: 'consult' },
 ]
 const REGIONS: [string, string][] = [['41173', '안양시 동안구']]
+
+// 사무소가 정한 메인 단지 (표시 이름에 쓴다). 앱을 열 때 한 번 받아 온다.
+let mainList: MainComplex[] = DEFAULT_MAIN
+const fixOld = (list: MainComplex[]) => list.map((m) => (m.name === '공작부영' ? DEFAULT_MAIN.find((d) => d.name === '공작부영아파트')! : m))
+const label = (complex: string, kind?: string) => displayName(complex, mainList, kind)
 
 interface Post {
   id: string
@@ -221,6 +226,15 @@ function Trades({ cid, perm, onPush }: { cid: string; perm: string; onPush: () =
   const [trades, setTrades] = useState<TradeRow[]>([])
   const [err, setErr] = useState('')
   const [adding, setAdding] = useState(false)
+  const [, redraw] = useState(0)
+  useEffect(() => {
+    api<{ main?: MainComplex[] }>('c?a=profile')
+      .then((r) => {
+        if (r.main?.length) mainList = fixOld(r.main)
+        redraw((n) => n + 1)
+      })
+      .catch(() => {})
+  }, [])
 
   const loadTrades = () =>
     api<{ trades: TradeRow[] }>(`c?a=watchTrades&id=${cid}`)
@@ -264,12 +278,12 @@ function Trades({ cid, perm, onPush }: { cid: string; perm: string; onPush: () =
           {items.map((w) => (
             <li key={`${w.lawd}${w.dong}${w.complex}`} className="card line">
               <div className="grow">
-                <b>{w.complex}</b>
+                <b>{label(w.complex)}</b>
                 <small>
                   {REGIONS.find(([c]) => c === w.lawd)?.[1]} {w.dong}
                 </small>
               </div>
-              <button className="icon-btn" aria-label={`${w.complex} 빼기`} onClick={() => save(items.filter((x) => x !== w))}>
+              <button className="icon-btn" aria-label={`${label(w.complex)} 빼기`} onClick={() => save(items.filter((x) => x !== w))}>
                 <Icon name="close" />
               </button>
             </li>
@@ -287,7 +301,7 @@ function Trades({ cid, perm, onPush }: { cid: string; perm: string; onPush: () =
               return (
                 <li key={t.id} className="card line">
                   <div className="grow">
-                    <b>{t.complex}</b>
+                    <b>{label(t.complex)}</b>
                     <small>
                       전용 {t.area}㎡ {t.floor}층, 계약 {t.date.slice(5).replace('-', '.')}
                     </small>
@@ -323,13 +337,13 @@ function AddComplex({ picked, onToggle, onClose }: { picked: Watch[]; onToggle: 
     api<{ complexes: { complex: string; dong: string; kind?: string; n: number }[]; main?: MainComplex[] }>(`c?a=complexes&lawd=${lawd}`)
       .then((r) => {
         setList(r.complexes)
-        if (r.main?.length) setMain(r.main)
+        if (r.main?.length) setMain(fixOld(r.main))
       })
       .catch((e) => setErr(e.message))
   }, [lawd])
   const isMain = (c: { complex: string; kind?: string }) => !!matchMain(c.complex, main, c.kind)
   // 중개사무소가 주로 다루는 단지를 맨 위에
-  const rows = (list ?? []).filter((c) => !q.trim() || `${c.complex}${c.dong}`.includes(q.trim())).sort((a, b) => Number(isMain(b)) - Number(isMain(a)))
+  const rows = (list ?? []).filter((c) => !q.trim() || `${c.complex}${label(c.complex, c.kind)}${c.dong}`.includes(q.trim())).sort((a, b) => Number(isMain(b)) - Number(isMain(a)))
   const has = (c: { complex: string; dong: string }) => picked.some((w) => w.lawd === lawd && w.complex === c.complex && w.dong === c.dong)
 
   return (
@@ -348,7 +362,7 @@ function AddComplex({ picked, onToggle, onClose }: { picked: Watch[]; onToggle: 
             <li key={c.dong + c.complex} className={on ? 'card pick on' : 'card pick'} role="checkbox" aria-checked={on} onClick={() => (on || picked.length < 20 ? onToggle({ lawd, complex: c.complex, dong: c.dong }, !on) : toast('20곳까지 고를 수 있습니다'))}>
               <span className="check">{on ? '✓' : ''}</span>
               <div className="grow">
-                <b>{c.complex}</b>
+                <b>{label(c.complex, c.kind)}</b>
                 <small>
                   {isMain(c) && <span className="tag score">추천</span>} {c.kind ?? '아파트'} · {c.dong}, 최근 거래 {c.n}건
                 </small>

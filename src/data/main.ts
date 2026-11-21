@@ -8,7 +8,7 @@ export interface MainComplex {
 export const DEFAULT_MAIN: MainComplex[] = [
   { name: '힐스테이트 평촌역 더퍼스트', kind: '오피스텔', aliases: ['힐스테이트평촌역더퍼스트', '힐스테이트평촌역'] },
   { name: '평촌아크로타워', kind: '오피스텔', aliases: ['아크로타워'] },
-  { name: '공작부영', kind: '아파트', aliases: ['공작아파트', '공작마을부영'] },
+  { name: '공작부영아파트', kind: '아파트', aliases: ['공작아파트', '공작부영', '공작마을부영'] }, // 국토부 자료에는 '공작아파트'(관양동 1588)로 올라온다
   { name: '한가람세경', kind: '아파트', aliases: ['한가람(세경)'] },
   { name: '한가람신라', kind: '아파트', aliases: ['한가람(신라)'] },
   { name: '한가람한양', kind: '아파트', aliases: ['한가람(한양)'] },
@@ -17,6 +17,9 @@ export const DEFAULT_MAIN: MainComplex[] = [
 const norm = (s: string) => s.replace(/[\s()（）·.\-,]|아파트$|오피스텔$/g, '')
 
 /** 자료에 나온 단지 이름이 어느 메인 단지인지 (없으면 undefined) */
+/** 화면·보고서에 쓸 단지 이름: 메인 단지면 정해 둔 이름, 아니면 자료상 이름 그대로 */
+export const displayName = (complex: string, list: MainComplex[], kind?: string) => matchMain(complex, list, kind)?.name ?? complex
+
 export function matchMain(complex: string, list: MainComplex[], kind?: string): MainComplex | undefined {
   const raw = complex.replace(/[\s()（）·.\-,]/g, '')
   const c = norm(complex)

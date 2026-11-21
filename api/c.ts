@@ -113,6 +113,10 @@ export default handler(
         return { message: msg }
       }
 
+      // 사무소 정보 (이름, 메인 단지)
+      case 'profile':
+        return (await getJ<object>('profile')) ?? {}
+
       // 실거래 자료 점검 (10분 동안 결과를 보관해 반복 조회를 막는다)
       case 'status': {
         const hit = await getJ<{ at: number; list: unknown }>('status')

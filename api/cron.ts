@@ -1,5 +1,6 @@
 // 하루 한 번 실행 (vercel.json 의 crons): 새로 신고된 실거래를 찾아, 그 아파트를 지정한 손님에게 알림을 보낸다.
-import { hallJ, redis, setJ, unshiftJ } from './_db.js'
+import { DEFAULT_MAIN, displayName, type MainComplex } from '../src/data/main.js'
+import { getJ, hallJ, redis, setJ, unshiftJ } from './_db.js'
 import { REGIONS } from './c.js'
 import { toCustomer } from './_push.js'
 import { fetchTrades } from './trades.js'
@@ -15,6 +16,8 @@ export default async function cron(req: { headers: Record<string, string | strin
   if (secret && req.headers.authorization !== `Bearer ${secret}`) return res.status(401).json({ error: '권한이 없습니다' })
   try {
     const watch = await hallJ<{ lawd: string; complex: string; dong: string }[]>('watch')
+    const saved = (await getJ<{ main?: MainComplex[] }>('profile'))?.main
+    const main = saved?.length ? saved.map((m) => (m.name === '공작부영' ? DEFAULT_MAIN.find((d) => d.name === '공작부영아파트')! : m)) : DEFAULT_MAIN
     const report: Record<string, unknown> = {}
     for (const lawd of Object.keys(REGIONS)) {
       const { rows } = await fetchTrades(lawd, 2)
@@ -32,7 +35,7 @@ export default async function cron(req: { headers: Record<string, string | strin
           const mine = fresh.filter((r) => items.some((w) => w.lawd === lawd && w.complex === r.complex && (!w.dong || w.dong === r.dong)))
           for (const r of mine.slice(0, 5)) {
             const diff = r.prev ? (r.price > r.prev ? ` (직전 대비 ▲${won(r.price - r.prev)})` : r.price < r.prev ? ` (직전 대비 ▼${won(r.prev - r.price)})` : '') : ''
-            const note = { title: `${r.complex} 실거래 신고`, body: `전용 ${r.area}㎡ ${r.floor}층 ${won(r.price)}${diff} · 계약일 ${r.date}`, url: '/customer.html?go=trades', tag: `trade-${r.id}` }
+            const note = { title: `${displayName(r.complex, main, r.kind)} 실거래 신고`, body: `전용 ${r.area}㎡ ${r.floor}층 ${won(r.price)}${diff} · 계약일 ${r.date}`, url: '/customer.html?go=trades', tag: `trade-${r.id}` }
             await unshiftJ(`alerts:${who}`, { ...note, at: Date.now(), trade: r }, 100)
             sent += await toCustomer(who, note)
           }
