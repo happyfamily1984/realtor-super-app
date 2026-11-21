@@ -10,7 +10,7 @@
 | 아파트 실거래 (매매·전월세) | 국토교통부 실거래가 API (중계 서버 경유) | 깃허브 Actions `collect` | 3시간마다 |
 | 오피스텔 실거래 | 국토교통부 API (`MOLIT_API_KEY` 시크릿이 있을 때만) | 〃 | 〃 |
 | 경매 물건 | 법원경매정보 (수원지방법원 안양지원) | 〃 | 〃 |
-| 네이버 매물 (호가) | 네이버 부동산 화면 | 사람 또는 브라우저를 쓰는 AI가 `inbox/naver/`에 저장 | 받을 때마다 |
+| 네이버 매물 (호가) | 네이버 부동산 화면 | 뮤즈 AI가 브라우저로 받아 `inbox/naver/`에 저장 | 매일 10:00 (10:30 전에 올라옴) |
 
 네이버 부동산은 클라우드에서 열리지 않습니다(2026-11-21 진단: 전부 시간 초과). 그래서 매물만은 브라우저로 받아 파일로 넣습니다.
 법원경매정보는 반대로 한국 밖에서 열리지 않아 깃허브 Actions에서만 받습니다.
@@ -55,7 +55,7 @@ https://raw.githubusercontent.com/happyfamily1984/realtor-super-app/store/main/m
 | `auctionCount` | 진행 중인 경매 물건 수 |
 | `post` | 올릴 글 (아래 참고) |
 
-`listings`: `capturedAt`(받은 날), `stale`(7일 넘음), `total`, `suspects`(중복 의심 건수),
+`listings`: `capturedAt`(받은 날), `stale`(오늘 치가 안 들어옴), `total`, `suspects`(중복 의심 건수),
 `rows[]`(거래 종류·면적별 `count`, `min`, `median`, `max`, 비교 기준 `dealBasis`·`dealMedian`, 호가가 실거래보다 얼마나 높은지 `gapPct`),
 `items[]`(매물 하나하나: `type`, `area`, `price`, `priceMax`, `rent`, `floor`, `dong`, `direction`, `memo`, `confirmedAt`, `articleNo`, `suspect`).
 
@@ -91,7 +91,10 @@ https://raw.githubusercontent.com/happyfamily1984/realtor-super-app/store/main/m
 
 자세한 형식과 다른 AI에게 시킬 글은 [`inbox/naver/README.md`](../inbox/naver/README.md).
 
-1. 브라우저를 쓰는 AI(또는 사람)가 네이버 부동산 화면에서 단지별 매물을 읽어 `inbox/naver/<단지 id>.json`으로 `main`에 저장
+매물은 **뮤즈 AI로 매일 오전 10시에 받는 것 하나만** 씁니다 (확장 프로그램 등 다른 길로 받은 매물은 여기에 섞지 않음).
+10시 30분 전에는 6개 파일이 모두 올라와 있어야 하고, 10시 35분에 수집이 한 번 더 돌아 안 들어온 단지를 `notes`에 적습니다.
+
+1. 뮤즈 AI가 네이버 부동산 화면에서 단지별 매물을 읽어 `inbox/naver/<단지 id>.json`으로 `main`에 저장
 2. 파일이 올라오면 `collect`가 바로 돌아 몇 분 안에 `my.json`에 반영
 3. 중복 의심 매물이 있으면 `node collector/collect.js dupes`로 그 매물만 뽑아, 매물번호를 받아 오게 시킴
 

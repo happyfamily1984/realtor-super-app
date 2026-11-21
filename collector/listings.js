@@ -72,7 +72,17 @@ export function readInbox(dir) {
 }
 
 /** 거래 종류·면적별 호가 요약 + 실거래 중간값과의 차이. analysis: main.js analyze() 결과 */
-export function summarizeListings(box, analysis, today) {
+/**
+ * 매물은 매일 오전 10시에 받아 10시 30분 전에 올라옴 (뮤즈 AI).
+ * expected: 지금 시각 기준으로 들어와 있어야 할 날짜 (10:30 전이면 어제, 지나면 오늘)
+ */
+export function expectedDate(now = new Date()) {
+  const k = new Date(now.getTime() + 9 * 3600e3);
+  const late = k.getUTCHours() * 60 + k.getUTCMinutes() >= 10 * 60 + 30;
+  return new Date(k.getTime() - (late ? 0 : 86400e3)).toISOString().slice(0, 10);
+}
+
+export function summarizeListings(box, analysis, today, expected = today) {
   const days = box.capturedAt ? Math.round((Date.parse(today) - Date.parse(box.capturedAt)) / 86400e3) : null;
   const groups = new Map();
   // 네이버는 전용면적을 소수점 없이 보여줌(49.68 → 49) → 실거래 면적 가운데 같은 것을 찾아 그 면적으로 묶음
@@ -91,13 +101,13 @@ export function summarizeListings(box, analysis, today) {
     return { type, area, count: ls.length, min: Math.min(...prices), median: median(prices), max: Math.max(...prices), medianRent: type === 'monthly' ? median(ls.map((l) => l.rent)) : 0, dealMedian: base || 0, dealBasis: base ? (recent ? '최근 3개월' : '최근 1년') : '', gapPct: base ? Math.round((median(prices) / base - 1) * 1000) / 10 : null };
   }).sort((p, q) => p.type.localeCompare(q.type) * -1 || p.area - q.area);
   const suspects = box.items.filter((l) => l.suspect).length;
-  return { capturedAt: box.capturedAt, source: box.source, daysOld: days, stale: days == null || days > 7, total: box.items.length, suspects, rows, items: box.items };
+  return { capturedAt: box.capturedAt, source: box.source, daysOld: days, stale: !box.capturedAt || box.capturedAt < expected, total: box.items.length, suspects, rows, items: box.items };
 }
 
 const LABEL = { trade: '매매', jeonse: '전세', monthly: '월세' };
 export function listingInsights(s) {
   if (!s.total) return [];
-  const head = `매물(호가) ${s.total}건 · ${s.source} ${s.capturedAt || '날짜 없음'} 기준${s.stale ? ' (7일 넘음, 새로 받아야 함)' : ''}${s.suspects ? ` · 중복 의심 ${s.suspects}건 포함` : ''}`;
+  const head = `매물(호가) ${s.total}건 · ${s.source} ${s.capturedAt || '날짜 없음'} 기준${s.stale ? ' (오늘 치가 아직 안 들어옴)' : ''}${s.suspects ? ` · 중복 의심 ${s.suspects}건 포함` : ''}`;
   return [head, ...s.rows.filter((r) => r.type !== 'monthly').slice(0, 6).map((r) =>
     `${LABEL[r.type]} 호가 전용 ${r.area}㎡: ${eok(r.min)}~${eok(r.max)} (${r.count}건, 중간 ${eok(r.median)})${r.gapPct != null ? ` · ${r.dealBasis} 실거래 중간값 ${eok(r.dealMedian)}보다 ${r.gapPct > 0 ? '+' : ''}${r.gapPct}%` : ''}`)];
 }
