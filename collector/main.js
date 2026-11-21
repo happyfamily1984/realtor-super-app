@@ -33,6 +33,7 @@ export function analyze(cfg, deals, today) {
   const areas = [...new Set(live.map((d) => Math.round(d.area)))].sort((a, b) => a - b).map((area) => {
     const pick = (type, from, to = '9999') => live.filter((d) => d.type === type && Math.round(d.area) === area && d.date >= from && d.date < to);
     const t12 = pick('trade', y1), tPrev = pick('trade', y2, y1), tAll = pick('trade', '0000');
+    const t3 = pick('trade', monthsAgo(today, 3)), j3 = pick('jeonse', monthsAgo(today, 3));
     const j12 = pick('jeonse', y1), m12 = pick('monthly', y1);
     const byDate = (l) => [...l].sort((a, b) => b.date.localeCompare(a.date));
     const high = tAll.length ? tAll.reduce((a, b) => (b.price > a.price ? b : a)) : null;
@@ -40,12 +41,13 @@ export function analyze(cfg, deals, today) {
     return {
       area, exact: [...new Set(live.filter((d) => Math.round(d.area) === area).map((d) => d.area))].sort((a, b) => a - b),
       trade: {
+        count3: t3.length, median3: median(t3.map(amt)),
         count12: t12.length, median12: tm, min12: t12.length ? Math.min(...t12.map(amt)) : 0, max12: t12.length ? Math.max(...t12.map(amt)) : 0,
         prevCount: tPrev.length, prevMedian: pm, changePct: tm && pm ? Math.round((tm / pm - 1) * 1000) / 10 : null,
         high: high && { price: high.price, date: high.date, floor: high.floor },
         last: byDate(tAll)[0] ? { price: byDate(tAll)[0].price, date: byDate(tAll)[0].date, floor: byDate(tAll)[0].floor } : null,
       },
-      jeonse: { count12: j12.length, median12: jm, last: byDate(pick('jeonse', '0000'))[0] ? { deposit: byDate(pick('jeonse', '0000'))[0].deposit, date: byDate(pick('jeonse', '0000'))[0].date } : null },
+      jeonse: { count3: j3.length, median3: median(j3.map(amt)), count12: j12.length, median12: jm, last: byDate(pick('jeonse', '0000'))[0] ? { deposit: byDate(pick('jeonse', '0000'))[0].deposit, date: byDate(pick('jeonse', '0000'))[0].date } : null },
       monthly: { count12: m12.length, medianDeposit: median(m12.map((d) => d.deposit)), medianRent: median(m12.map((d) => d.monthlyRent)) },
       jeonseRate: tm && jm ? Math.round((jm / tm) * 100) : null,
     };

@@ -19,14 +19,16 @@ export function parsePrice(v) {
 
 export function normalizeListing(l) {
   const type = TYPES[String(l.type ?? l.거래 ?? '').trim()] ?? null;
-  let price = parsePrice(l.price ?? l.가격 ?? l.deposit ?? l.보증금), rent = parsePrice(l.rent ?? l.월세 ?? 0);
-  // "5,000/130" 꼴의 월세
-  const split = String(l.price ?? l.가격 ?? '').match(/^(.+)\/\s*([\d,]+)$/);
-  if (split) { price = parsePrice(split[1]); rent = parsePrice(split[2]); }
+  // 같은 집을 묶어 보여줄 때는 "8억 5,000~9억"처럼 범위로 나옴 → 낮은 값을 호가로, 높은 값은 priceMax로
+  const [lo, hi] = String(l.price ?? l.가격 ?? l.deposit ?? l.보증금 ?? '').split('~').map((x) => x.trim());
+  const one = (v) => { const m = String(v ?? '').match(/^(.+)\/\s*([\d,]+)$/); return m ? [parsePrice(m[1]), parsePrice(m[2])] : [parsePrice(v), 0]; }; // "5,000/130" 꼴의 월세
+  let [price, rent] = typeof (l.price ?? l.가격) === 'number' ? [Math.round(l.price ?? l.가격), 0] : one(lo);
+  if (!rent) rent = parsePrice(l.rent ?? l.월세 ?? 0);
+  const priceMax = hi ? one(hi)[0] : price;
   const area = Number(String(l.area ?? l.전용 ?? l.전용면적 ?? '').replace(/[^\d.]/g, '')) || 0;
   if (!type || !price || !area) return null;
   return {
-    type, area, price, rent, floor: String(l.floor ?? l.층 ?? ''), dong: String(l.dong ?? l.동 ?? ''), direction: String(l.direction ?? l.향 ?? ''),
+    type, area, price, priceMax, rent, floor: String(l.floor ?? l.층 ?? ''), dong: String(l.dong ?? l.동 ?? ''), direction: String(l.direction ?? l.향 ?? ''),
     memo: String(l.memo ?? l.설명 ?? '').slice(0, 120), confirmedAt: String(l.confirmedAt ?? l.확인일 ?? ''), articleNo: String(l.articleNo ?? l.매물번호 ?? ''),
   };
 }
@@ -51,13 +53,20 @@ export function readInbox(dir) {
 export function summarizeListings(box, analysis, today) {
   const days = box.capturedAt ? Math.round((Date.parse(today) - Date.parse(box.capturedAt)) / 86400e3) : null;
   const groups = new Map();
-  for (const l of box.items) { const k = `${l.type}|${Math.round(l.area)}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(l); }
+  // 네이버는 전용면적을 소수점 없이 보여줌(49.68 → 49) → 실거래 면적 가운데 같은 것을 찾아 그 면적으로 묶음
+  // 후보가 여럿이면 거래가 많은 면적으로
+  const areaOf = (v) => (analysis?.areas ?? []).filter((x) => x.exact.some((e) => Math.abs(e - v) < 0.6 || Math.floor(e) === v))
+    .sort((p, q) => q.trade.count12 + q.jeonse.count12 - (p.trade.count12 + p.jeonse.count12))[0]?.area ?? Math.round(v);
+  for (const l of box.items) { const k = `${l.type}|${areaOf(l.area)}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(l); }
   const rows = [...groups].map(([k, ls]) => {
     const [type, a] = k.split('|'); const area = Number(a);
     const ref = analysis?.areas.find((x) => x.area === area);
-    const base = type === 'trade' ? ref?.trade.median12 : type === 'jeonse' ? ref?.jeonse.median12 : 0;
+    // 비교 기준: 최근 3개월 실거래가 3건 이상이면 그 중간값, 아니면 최근 1년 중간값 (오르내림이 빠를 때 1년치는 낡은 값이라)
+    const side = type === 'trade' ? ref?.trade : type === 'jeonse' ? ref?.jeonse : null;
+    const recent = (side?.count3 ?? 0) >= 3;
+    const base = side ? (recent ? side.median3 : side.median12) : 0;
     const prices = ls.map((l) => l.price);
-    return { type, area, count: ls.length, min: Math.min(...prices), median: median(prices), max: Math.max(...prices), medianRent: type === 'monthly' ? median(ls.map((l) => l.rent)) : 0, dealMedian: base || 0, gapPct: base ? Math.round((median(prices) / base - 1) * 1000) / 10 : null };
+    return { type, area, count: ls.length, min: Math.min(...prices), median: median(prices), max: Math.max(...prices), medianRent: type === 'monthly' ? median(ls.map((l) => l.rent)) : 0, dealMedian: base || 0, dealBasis: base ? (recent ? '최근 3개월' : '최근 1년') : '', gapPct: base ? Math.round((median(prices) / base - 1) * 1000) / 10 : null };
   }).sort((p, q) => p.type.localeCompare(q.type) * -1 || p.area - q.area);
   return { capturedAt: box.capturedAt, source: box.source, daysOld: days, stale: days == null || days > 7, total: box.items.length, rows, items: box.items };
 }
@@ -67,5 +76,5 @@ export function listingInsights(s) {
   if (!s.total) return [];
   const head = `매물(호가) ${s.total}건 · ${s.source} ${s.capturedAt || '날짜 없음'} 기준${s.stale ? ' (7일 넘음, 새로 받아야 함)' : ''}`;
   return [head, ...s.rows.filter((r) => r.type !== 'monthly').slice(0, 6).map((r) =>
-    `${LABEL[r.type]} 호가 전용 ${r.area}㎡: ${eok(r.min)}~${eok(r.max)} (${r.count}건, 중간 ${eok(r.median)})${r.gapPct != null ? ` · 실거래 중간값보다 ${r.gapPct > 0 ? '+' : ''}${r.gapPct}%` : ''}`)];
+    `${LABEL[r.type]} 호가 전용 ${r.area}㎡: ${eok(r.min)}~${eok(r.max)} (${r.count}건, 중간 ${eok(r.median)})${r.gapPct != null ? ` · ${r.dealBasis} 실거래 중간값 ${eok(r.dealMedian)}보다 ${r.gapPct > 0 ? '+' : ''}${r.gapPct}%` : ''}`)];
 }

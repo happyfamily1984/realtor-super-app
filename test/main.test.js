@@ -104,13 +104,19 @@ test('네이버 매물: 금액 글자 읽기, 호가 요약과 실거래 대비'
   assert.deepEqual(['6억 7,000', '67000', 67000, '9,500만', '4.5억', '12억'].map(parsePrice), [67000, 67000, 67000, 9500, 45000, 120000]);
   assert.deepEqual([normalizeListing({ type: '월세', area: '37.85㎡', price: '1,000/80' })].map((l) => [l.type, l.area, l.price, l.rent]), [['monthly', 37.85, 1000, 80]]);
   assert.equal(normalizeListing({ type: '매매', price: '5억' }), null); // 면적 없음
+  assert.deepEqual([normalizeListing({ type: '매매', area: 50, price: '8억 5,000~9억' })].map((l) => [l.price, l.priceMax]), [[85000, 90000]]);
+  assert.deepEqual([normalizeListing({ type: '월세', area: 34, price: '8,000/65~1억/55' })].map((l) => [l.price, l.rent, l.priceMax]), [[8000, 65, 10000]]);
+  assert.deepEqual([normalizeListing({ type: '전세', area: 50, price: 30000 })].map((l) => [l.price, l.priceMax, l.rent]), [[30000, 30000, 0]]);
   const a = analyze(silla, dealsOf(silla, DEALS), '2026-11-21');
   const items = [{ type: '매매', area: 45.8, price: '4억 8,000' }, { type: '매매', area: 45.8, price: 50000 }, { type: '전세', area: 45.8, price: '2억 5,000' }].map(normalizeListing);
   const s = summarizeListings({ capturedAt: '2026-11-20', source: '네이버 부동산', items }, a, '2026-11-21');
   assert.equal(s.stale, false);
   const t = s.rows.find((r) => r.type === 'trade');
   assert.deepEqual([t.area, t.count, t.min, t.median, t.dealMedian, t.gapPct], [46, 2, 48000, 49000, 45000, 8.9]);
-  assert.match(listingInsights(s)[1], /매매 호가 전용 46㎡: 4\.8억~5억 \(2건, 중간 4\.9억\) · 실거래 중간값보다 \+8\.9%/);
+  assert.equal(listingInsights(s)[1], '매매 호가 전용 46㎡: 4.8억~5억 (2건, 중간 4.9억) · 최근 1년 실거래 중간값 4.5억보다 +8.9%');
+  // 네이버 표기 45㎡(소수점 버림)도 실거래 45.8㎡(46㎡)와 같은 면적으로 묶임
+  const cut = summarizeListings({ capturedAt: '2026-11-20', source: 'x', items: [normalizeListing({ type: '매매', area: 45, price: '5억' })] }, a, '2026-11-21');
+  assert.deepEqual([cut.rows[0].area, cut.rows[0].dealMedian], [46, 45000]);
   assert.equal(summarizeListings({ capturedAt: '2026-11-01', source: 'x', items }, a, '2026-11-21').stale, true);
   assert.ok(complexPost(silla, a, '2026-11-21', listingInsights(s)).blog.body.includes('■ 지금 나와 있는 매물 (호가)'));
 });
