@@ -1,0 +1,12 @@
+{
+  "name": "realtor-super-app",
+  "version": "0.1.0",
+  "description": "공인중개사 슈퍼앱 — 공용 임시저장소 수집기",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "collect": "node collector/collect.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=20" }
+}
