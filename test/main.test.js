@@ -14,6 +14,11 @@ test('경매 물건을 법정동+지번으로 단지에 맞춤 (이름이 "한�
   assert.equal(matchComplex({ ...RAW, daepyoLotno: '1589' }, cfg.complexes).id, 'hangaram-segyeong');
   assert.equal(matchComplex({ ...RAW, daepyoLotno: '900', buldNm: '다른아파트', printSt: '경기도 안양시 동안구 관양동 900', rdAddrSub: '' }, cfg.complexes), null);
   assert.equal(matchComplex({ hjguDong: '관양동', daepyoLotno: '1', buldNm: '평촌 아크로타워', printSt: '', rdAddrSub: '' }, cfg.complexes).id, 'acro-tower');
+  // 오피스텔: 지번으로도 찾음. 옆 단지(1591-6 푸르지오센트럴파크)는 걸리지 않음
+  assert.equal(matchComplex({ hjguDong: '관양동', daepyoLotno: '1591', buldNm: '', printSt: '경기도 안양시 동안구 관양동 1591 5층501호', rdAddrSub: '' }, cfg.complexes).id, 'acro-tower');
+  assert.equal(matchComplex({ hjguDong: '관양동', daepyoLotno: '1591-6', buldNm: '평촌푸르지오센트럴파크', printSt: '', rdAddrSub: '' }, cfg.complexes), null);
+  assert.equal(matchComplex({ hjguDong: '관양동', daepyoLotno: '1588-18', buldNm: '', printSt: '', rdAddrSub: '' }, cfg.complexes).id, 'hillstate-pyeongchon');
+  assert.equal(matchComplex({ hjguDong: '관양동', daepyoLotno: '9', buldNm: '힐스테이트에코평촌', printSt: '', rdAddrSub: '' }, cfg.complexes).id, 'hillstate-pyeongchon');
 });
 
 test('경매 물건 정리: 금액·비율·날짜·면적', () => {
@@ -68,6 +73,13 @@ test('단지 분석: 면적별 중간값·1년 전 대비·전세가율, 취소 
   assert.match(insights(silla, a).join('\n'), /전용 46㎡ 매매 중간값 4\.5억 \(2건, 4\.4억~4\.6억\) · 1년 전보다 \+12\.5% · 전세가율 51%/);
   assert.deepEqual(refFor(a, 45.8), { median12: 45000, count12: 2, last: { price: 44000, date: '2026-10-01', floor: 5 } });
   assert.equal(refFor(a, 84.9), null);
+});
+
+test('실거래 고르기: 지번이 같거나 이름 낱말이 맞으면 그 단지', () => {
+  const hill = cfg.complexes.find((c) => c.id === 'hillstate-pyeongchon');
+  const ds = [{ aptNm: '힐스테이트 에코 평촌', umdNm: '관양동', jibun: '0' }, { aptNm: '이름없음', umdNm: '관양동', jibun: '1588-18' }, { aptNm: '공작아파트', umdNm: '관양동', jibun: '1588' }, { aptNm: '비산힐스테이트', umdNm: '비산동', jibun: '1' }];
+  assert.equal(dealsOf(hill, ds).length, 2);
+  assert.equal(dealsOf(cfg.complexes.find((c) => c.id === 'gongjak-buyoung'), ds).length, 1);
 });
 
 test('올릴 글: 단지 분석과 경매 (스레드 500자 이내, 블로그 소제목, 카드)', () => {
