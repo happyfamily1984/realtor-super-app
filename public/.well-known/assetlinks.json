@@ -1,0 +1,6 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": { "namespace": "android_app", "package_name": "app.realtor.customer", "sha256_cert_fingerprints": ["7F:39:5B:34:E2:1A:23:95:DE:0C:2F:15:34:9B:43:6A:8B:42:C6:56:CF:8E:9A:1A:FD:F4:67:28:5E:8E:1A:99"] }
+  }
+]

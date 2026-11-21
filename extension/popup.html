@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8" />
+<style>
+  body { width: 300px; margin: 0; padding: 14px; font: 13px/1.5 -apple-system, 'Malgun Gothic', sans-serif; color: #17211d; }
+  h1 { font-size: 15px; margin: 0 0 10px; }
+  label { display: block; font-weight: 600; font-size: 12px; color: #46514c; margin: 8px 0 3px; }
+  input, select { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #cfd4cd; border-radius: 8px; font: inherit; }
+  .row { display: flex; gap: 8px; } .row > div { flex: 1; }
+  button { width: 100%; margin-top: 10px; padding: 10px; border-radius: 8px; border: 1px solid #0e6b57; font: 600 13px inherit; cursor: pointer; background: #fff; color: #0e6b57; }
+  button.main { background: #0e6b57; color: #fff; }
+  button:disabled { opacity: .5; }
+  #status { margin-top: 12px; padding: 9px 10px; border-radius: 8px; background: #e3f1ec; color: #0a4d3f; min-height: 20px; }
+  #status.error { background: #fdebe5; color: #b63a1e; }
+  small { color: #66736d; display: block; margin-top: 8px; }
+</style>
+<h1>매물 수집기</h1>
+<div class="row">
+  <div><label for="gu">시군구 코드 (5자리)</label><input id="gu" inputmode="numeric" maxlength="5" placeholder="11440" /></div>
+  <div><label for="dong">동 이름</label><input id="dong" placeholder="아현동" /></div>
+</div>
+<label for="type">매물 종류</label>
+<select id="type">
+  <option value="apt">아파트</option>
+  <option value="opst">오피스텔</option>
+  <option value="villa">빌라·주택</option>
+  <option value="shop">상가·사무실</option>
+</select>
+<button id="go" class="main">이 동으로 이동해서 수집</button>
+<button id="snap">지금 화면에서 모인 것만 저장</button>
+<div id="status">대기 중</div>
+<button id="save" disabled>파일로 저장</button>
+<small>수집이 끝난 뒤 중개사 슈퍼앱 창을 열면 매물이 자동으로 들어갑니다. 안 들어가면 ‘파일로 저장’ 후 앱의 매물 &gt; 가져오기에서 선택하세요.</small>
+<script src="popup.js"></script>
+</html>

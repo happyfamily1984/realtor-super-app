@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "중개사 슈퍼앱 매물 수집기",
+  "version": "0.1.0",
+  "description": "네이버 부동산에서 동을 지정해 이동하고, 그 동의 매물을 모아 중개사 슈퍼앱으로 보냅니다.",
+  "permissions": ["storage", "unlimitedStorage", "tabs"],
+  "host_permissions": ["https://new.land.naver.com/*"],
+  "action": { "default_title": "매물 수집기", "default_popup": "popup.html" },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["https://new.land.naver.com/*"], "js": ["page.js"], "run_at": "document_start", "world": "MAIN" },
+    { "matches": ["https://new.land.naver.com/*"], "js": ["content.js"], "run_at": "document_start" },
+    { "matches": ["https://*.vercel.app/*", "http://localhost/*"], "js": ["bridge.js"], "run_at": "document_idle" }
+  ]
+}
