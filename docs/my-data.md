@@ -108,7 +108,20 @@ https://raw.githubusercontent.com/happyfamily1984/realtor-super-app/store/main/m
 - `name`: 앱·보고서에 쓰는 이름
 - `umdNm` + `jibun`: 법정동과 지번 (행정동이 아님. 부림동 → 관양동)
 - `words`: 이름으로 찾을 낱말 묶음 (예: `["힐스테이트", "평촌역"]`). 실거래·경매 모두 지번이 같거나 낱말이 모두 들어 있으면 그 단지로 봄
+- `jibunAlt`: 자료마다 지번이 다르게 나올 때 함께 인정할 지번 (힐스테이트: 국토부 실거래 1588-14, 알려진 지번 1588-18)
+- `aliases`: 자료에 다른 이름으로 올라오는 경우 (화면용 앱이 이름으로 찾을 때 씀)
 - `court`: 경매를 받을 법원 (다른 지역 단지를 넣으면 법원 코드도 맞춰야 함)
+
+### 메인 단지 목록은 이 파일 하나로
+
+화면용 앱(`src/data/main.ts`의 `DEFAULT_MAIN`)에도 같은 목록이 따로 있으면 한쪽만 바꿨을 때 어긋납니다.
+앱은 이 파일을 그대로 불러 쓰거나(`name`, `kind`, `aliases`가 들어 있음), `my.json`의 `complexes`를 목록으로 쓰는 것을 권합니다.
+
+## 브랜치
+
+- `main`: 수집기(`collector/`, `config/`, `inbox/`, `.github/workflows/collect.yml`)와 이 문서. `collect`는 `main`에서만 돎
+- `store`: 수집 결과 (커밋 1개로 덮어씀. 손으로 고치지 않음)
+- 화면용 앱 코드는 작업 브랜치에서 `main`으로 합칠 때 위 폴더들을 지우거나 덮어쓰지 않도록 주의
 
 ## 직접 돌려 보기
 
