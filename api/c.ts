@@ -13,7 +13,7 @@ const str = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max)
 /** 지역의 최근 실거래 (하루 동안 보관해 국토부 조회를 아낀다) */
 export async function regionTrades(lawd: string) {
   if (!REGIONS[lawd]) throw new HttpError(400, '지원하지 않는 지역입니다')
-  const key = `trades2:${lawd}` // 자료 형식이 바뀌면 이름을 바꿔 예전 보관본을 쓰지 않게 한다
+  const key = `trades3:${lawd}` // 자료 형식이 바뀌면 이름을 바꿔 예전 보관본을 쓰지 않게 한다
   const hit = await getJ<{ at: number; rows: any[] }>(key)
   if (hit && Date.now() - hit.at < 12 * 3600_000) return hit.rows
   const { rows } = await fetchTrades(lawd, 6)
@@ -46,12 +46,12 @@ export default handler(
       case 'complexes': {
         const lawd = q(req, 'lawd')
         const rows = await regionTrades(lawd)
-        const m = new Map<string, { complex: string; dong: string; kind: string; n: number; last: string; price: number }>()
+        const m = new Map<string, { complex: string; dong: string; jibun?: string; kind: string; n: number; last: string; price: number }>()
         for (const r of rows) {
           const k = `${r.kind}|${r.dong}|${r.complex}`
           const c = m.get(k)
           if (c) c.n++
-          else m.set(k, { complex: r.complex, dong: r.dong, kind: r.kind, n: 1, last: r.date, price: r.price })
+          else m.set(k, { complex: r.complex, dong: r.dong, jibun: r.jibun, kind: r.kind, n: 1, last: r.date, price: r.price })
         }
         return { region: REGIONS[lawd], main: (await getJ<{ main?: unknown[] }>('profile'))?.main ?? [], complexes: [...m.values()].sort((x, y) => x.complex.localeCompare(y.complex, 'ko')) }
       }

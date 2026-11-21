@@ -17,6 +17,7 @@ export interface Row {
   kind: '아파트' | '오피스텔'
   complex: string
   dong: string
+  jibun?: string // 지번 (같은 이름의 단지를 구분할 때 쓴다)
   area: number
   floor: number
   price: number // 매매가 또는 보증금 (만원)
@@ -42,7 +43,7 @@ export function parseRows(xml: string, service: Service): Row[] {
       const rent = isRent ? money(xmlTag(it, 'monthlyRent')) : undefined
       // 아파트 매매는 예전부터 쓰던 id 형식을 유지한다 (이미 본 거래 기록과 맞아야 한다)
       const id = `${service === 'aptTrade' ? '' : `${service}-`}${date}-${complex}-${areaRaw}-${floor}-${price}${isRent ? `-${rent}` : ''}`
-      return { id, kind, complex, dong: xmlTag(it, 'umdNm'), area: Math.round(areaRaw), floor, price, rent, date }
+      return { id, kind, complex, dong: xmlTag(it, 'umdNm'), jibun: xmlTag(it, 'jibun') || undefined, area: Math.round(areaRaw), floor, price, rent, date }
     })
     .filter((r) => r.complex && (r.price || r.rent))
 }

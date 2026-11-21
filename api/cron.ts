@@ -18,7 +18,7 @@ export default async function cron(req: { headers: Record<string, string | strin
     const report: Record<string, unknown> = {}
     for (const lawd of Object.keys(REGIONS)) {
       const { rows } = await fetchTrades(lawd, 2)
-      await setJ(`trades2:${lawd}`, { at: 0, rows: [] }) // 손님 화면의 보관본을 새로 받게 한다
+      await setJ(`trades3:${lawd}`, { at: 0, rows: [] }) // 손님 화면의 보관본을 새로 받게 한다
       const seenKey = `seen:${lawd}`
       const first = !(await redis<number>('SCARD', seenKey))
       const seen = new Set(await redis<string[]>('SMEMBERS', seenKey))
