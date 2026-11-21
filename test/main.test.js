@@ -110,7 +110,7 @@ test('네이버 매물: 금액 글자 읽기, 호가 요약과 실거래 대비'
   assert.deepEqual([normalizeListing({ type: '전세', area: 50, price: 30000 })].map((l) => [l.price, l.priceMax, l.rent]), [[30000, 30000, 0]]);
   const a = analyze(silla, dealsOf(silla, DEALS), '2026-11-21');
   const items = [{ type: '매매', area: 45.8, price: '4억 8,000' }, { type: '매매', area: 45.8, price: 50000 }, { type: '전세', area: 45.8, price: '2억 5,000' }].map(normalizeListing);
-  const s = summarizeListings({ capturedAt: '2026-11-20', source: '네이버 부동산', items }, a, '2026-11-21');
+  const s = summarizeListings({ capturedAt: '2026-11-20', source: '네이버 부동산', items }, a, '2026-11-21', '2026-11-20');
   assert.equal(s.stale, false);
   const t = s.rows.find((r) => r.type === 'trade');
   assert.deepEqual([t.area, t.count, t.min, t.median, t.dealMedian, t.gapPct], [46, 2, 48000, 49000, 45000, 8.9]);
