@@ -3,7 +3,7 @@
 import { getJ, hgetJ, hsetJ, idOk, listJ, newId, pushJ, saveImage, setJ, unshiftJ } from './_db.js'
 import { handler, HttpError, q } from './_lib.js'
 import { publicKey, subscribe, toOffice } from './_push.js'
-import { fetchTrades } from './trades.js'
+import { checkServices, fetchTrades } from './trades.js'
 
 /** 실거래 알림을 받을 수 있는 지역 */
 export const REGIONS: Record<string, string> = { '41173': '안양시 동안구' }
@@ -111,6 +111,15 @@ export default handler(
         await hsetJ('customers', need(), { ...c, unreadOffice: (Number(c.unreadOffice) || 0) + 1 })
         await toOffice({ title: `${c.name || '손님'} 님의 상담`, body: text.slice(0, 80), url: '/?go=chat', tag: `chat-${id}` })
         return { message: msg }
+      }
+
+      // 실거래 자료 점검 (10분 동안 결과를 보관해 반복 조회를 막는다)
+      case 'status': {
+        const hit = await getJ<{ at: number; list: unknown }>('status')
+        if (hit && Date.now() - hit.at < 600_000) return { checkedAt: hit.at, services: hit.list }
+        const list = await checkServices('41173')
+        await setJ('status', { at: Date.now(), list })
+        return { checkedAt: Date.now(), services: list }
       }
 
       // 알림 구독

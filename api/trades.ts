@@ -95,6 +95,16 @@ export async function fetchService(service: Service, lawd: string, months: numbe
   return pages.flat()
 }
 
+/** 네 가지 자료가 각각 조회되는지 점검 (건수 또는 실패 이유) */
+export async function checkServices(lawd: string) {
+  const names = Object.keys(SERVICES) as Service[]
+  const res = await Promise.allSettled(names.map((s) => fetchService(s, lawd, 1)))
+  return names.map((s, i) => {
+    const r = res[i]
+    return { 자료: SERVICES[s].label, 결과: r.status === 'fulfilled' ? `정상 (이번 달 ${r.value.length}건)` : r.reason instanceof Error ? r.reason.message : '실패' }
+  })
+}
+
 /** 여러 종류를 함께 조회. 일부가 실패해도(활용 신청이 안 된 경우 등) 나머지는 돌려주고, 실패 이유를 함께 알려준다. */
 export async function fetchMany(services: Service[], lawd: string, months: number) {
   const res = await Promise.allSettled(services.map((s) => fetchService(s, lawd, months)))
