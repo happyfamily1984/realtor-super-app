@@ -132,7 +132,7 @@ export function auctionPost(cfg, it, ref, today) {
     `${cfg.region} ${cfg.umdNm} ${cfg.name}${it.unit ? ` ${it.unit}` : ''}가 법원 경매로 나왔습니다. 사건번호는 ${it.caseNo}, 담당은 ${it.court} ${it.dept}입니다.`,
     `■ 물건 개요\n- 소재지: ${it.address}\n- 용도: ${it.usage}${it.area ? `\n- 전용면적: ${it.area}㎡` : ''}${it.landShare ? `\n- 대지권: ${it.landShare}` : ''}${it.caseName ? `\n- 사건: ${it.caseName}${it.receivedDate ? ` (${it.receivedDate} 접수)` : ''}` : ''}${it.claim ? `\n- 청구금액: ${won(it.claim)}` : ''}`,
     `■ 가격과 일정\n- 감정가: ${won(it.appraisal)}\n- 최저매각가격: ${won(it.minPrice)} (감정가의 ${it.minRate}%)\n- 유찰: ${it.failCount}회\n- 매각기일: ${dayOf(it.saleDate)} ${it.saleTime}${it.place ? ` ${it.place}` : ''}${it.decisionDate ? `\n- 매각결정기일: ${dayOf(it.decisionDate)}` : ''}`,
-    `■ 실거래가와 비교\n${cmp ? `${cmp}입니다.` : '같은 면적의 최근 1년 실거래 신고가 없어 비교하지 못했습니다.'}${ref?.last ? `\n가장 최근 거래는 ${ref.last.date} ${eok(ref.last.price)}(${ref.last.floor}층)입니다.` : ''}`,
+    `■ 실거래가와 비교\n${cmp ? `${cmp}입니다.` : '같은 면적의 최근 1년 실거래 신고가 없어 비교하지 못했습니다.'}${ref?.last ? `\n가장 최근 거래는 ${ref.last.date} ${eok(ref.last.price)}(${ref.last.floor}층)입니다.` : ''}${cmp && it.rights ? '\n다만 매수인이 인수하는 권리가 있어, 실제 부담은 최저가보다 커질 수 있습니다.' : ''}`,
     `■ 권리 관계 (매각물건명세서 기재)\n${it.rights || '매수인이 인수하는 권리 기재 없음'}${it.topPriority ? `\n- 최선순위 설정: ${it.topPriority}` : ''}${it.specRemark ? `\n- 비고: ${it.specRemark}` : ''}${it.remark ? `\n- 물건 비고: ${it.remark}` : ''}`,
     it.appraisalNotes?.length ? `■ 감정평가서 요점\n${it.appraisalNotes.slice(0, 4).map((n) => `- ${n}`).join('\n')}` : null,
     `■ 한눈에 정리\n- ${name}, 사건 ${it.caseNo}\n- ${price}\n- 매각기일 ${dayOf(it.saleDate)} ${it.saleTime}${cmp ? `\n- ${cmp}` : ''}`,
@@ -143,7 +143,7 @@ export function auctionPost(cfg, it, ref, today) {
     blog: { title: `${cfg.region.split(' ').at(-1)} ${cfg.umdNm} ${cfg.name} ${it.area ? `${it.area}㎡ ` : ''}경매 | 최저가 ${won(it.minPrice)}, 매각기일 ${md(it.saleDate)} (${it.caseNo})`, body, tags: tagsOf(cfg, ['경매', '법원경매', '아파트경매', it.court.replace(/\s+/g, '')]) },
     cards: [
       { title: `${name} 경매`, points: [`사건: ${it.caseNo}`, `법원: ${it.court} ${it.dept}`, `감정가: ${won(it.appraisal)}`, `최저가: ${won(it.minPrice)} (${it.minRate}%)`, `유찰: ${it.failCount}회`, `매각기일: ${dayOf(it.saleDate)} ${it.saleTime}`] },
-      ...(cmp ? [{ title: '실거래가와 비교', points: [`실거래 중간값: ${eok(ref.median12)} (${ref.count12}건)`, `최저가: ${won(it.minPrice)}`, `실거래 대비: ${Math.round(it.minPrice / 10000 / ref.median12 * 100)}%`] }] : []),
+      ...(cmp ? [{ title: '실거래가와 비교', points: [`실거래 중간값: ${eok(ref.median12)} (${ref.count12}건)`, `최저가: ${won(it.minPrice)}`, `실거래 대비: ${Math.round(it.minPrice / 10000 / ref.median12 * 100)}%`, ...(it.rights ? ['주의: 인수 권리만큼 부담이 늘 수 있음'] : [])] }] : []),
       { title: '입찰 전 확인', points: [`인수 권리: ${it.rights ? '있음 (명세서 확인)' : '기재 없음'}`, ...(it.topPriority ? [`최선순위: ${it.topPriority}`] : []), '명세서·현황조사서·등기부 확인'] },
     ],
     sources: [`법원경매정보 ${it.caseNo} (${today} 받음)`, ...(cmp ? [`국토교통부 실거래가 공개시스템 (${today} 받음)`] : [])],
