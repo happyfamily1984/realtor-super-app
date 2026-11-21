@@ -3,6 +3,7 @@
 //   node collector/collect.js molit --regions "강남구,성남시 분당구" --months 6 [--types trade,rent]
 //   node collector/collect.js summary --regions 강남구 --months 6 [--type trade|jeonse|monthly] [--apt 은마] [--dong 대치동]
 //   node collector/collect.js list
+//   node collector/collect.js dupes                    네이버 매물 중 중복 의심만 뽑아, 매물번호를 받아 오라고 시킬 글을 출력
 //   node collector/collect.js main [--auction false]   메인 단지(config/main-complexes.json) 실거래 분석 + 경매 → main/my.json
 // 저장 위치: --out 또는 STORE_DIR (기본 store-out). 깃허브에서는 store 브랜치가 이 폴더임.
 import { Store, FRESH_RECENT_H, FRESH_OLD_H } from './store.js';
@@ -11,7 +12,7 @@ import { byComplex, byMonth, eok } from './summary.js';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { searchCourt, matchComplex, normalizeItem, fetchDetail } from './auction.js';
-import { readInbox, summarizeListings, listingInsights } from './listings.js';
+import { readInbox, summarizeListings, listingInsights, suspectPrompt } from './listings.js';
 import { analyze, dealsOf, insights, complexPost, auctionPost, refFor } from './main.js';
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -57,6 +58,10 @@ if (cmd === 'molit' || cmd === 'summary') {
       for (const c of rows) console.log(`  ${c.umdNm} ${c.aptNm} ${c.area}㎡(${c.buildYear ?? '?'}년) ${c.count}건 · 중간 ${eok(c.median)} · 최저 ${eok(c.min)} · 최고 ${eok(c.max)}(${c.maxDate}) · 최근 ${c.last.date} ${eok(c.last.amount)}${c.last.monthlyRent ? `/${c.last.monthlyRent}` : ''} ${c.last.floor}층`);
     }
   }
+} else if (cmd === 'dupes') {
+  const cfg = JSON.parse(readFileSync(new URL('../config/main-complexes.json', import.meta.url), 'utf8'));
+  const inbox = readInbox(new URL('../inbox/naver', import.meta.url).pathname);
+  console.log(suspectPrompt(Object.fromEntries(cfg.complexes.filter((c) => inbox.out[c.id]).map((c) => [`${c.name} → ${c.id}.json`, inbox.out[c.id].items]))) || '중복 의심 매물이 없어요.');
 } else if (cmd === 'main') {
   const cfg = JSON.parse(readFileSync(new URL('../config/main-complexes.json', import.meta.url), 'utf8'));
   const now = new Date();
