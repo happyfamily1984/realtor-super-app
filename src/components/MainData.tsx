@@ -107,6 +107,7 @@ export function ComplexSheet({ complex: c, data, onClose }: { complex: MyComplex
               </div>
             ))}
           </div>
+          <p className="hint">실거래 중간은 최근 3개월 거래가 3건 이상이면 그 값, 아니면 최근 1년 값입니다. {[...new Set(L.rows.map((r) => r.dealBasis).filter(Boolean))].length === 1 ? `(지금은 모두 ${L.rows.find((r) => r.dealBasis)?.dealBasis} 기준)` : ''}</p>
 
           <h3 className="sub-h">매물</h3>
           <Chips options={(['매매', '전세', '월세'] as const).filter((t) => typeCount(t === '매매' ? 'trade' : t === '전세' ? 'jeonse' : 'monthly') > 0 || t === type)} value={type} onChange={setType} />

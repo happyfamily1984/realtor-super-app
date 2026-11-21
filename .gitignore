@@ -3,3 +3,4 @@ dist
 .env*
 .vercel
 public/collector-extension.zip
+store-out/
