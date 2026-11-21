@@ -13,7 +13,7 @@ const str = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max)
 /** 지역의 최근 실거래 (하루 동안 보관해 국토부 조회를 아낀다) */
 export async function regionTrades(lawd: string) {
   if (!REGIONS[lawd]) throw new HttpError(400, '지원하지 않는 지역입니다')
-  const key = `trades:${lawd}`
+  const key = `trades2:${lawd}` // 자료 형식이 바뀌면 이름을 바꿔 예전 보관본을 쓰지 않게 한다
   const hit = await getJ<{ at: number; rows: any[] }>(key)
   if (hit && Date.now() - hit.at < 12 * 3600_000) return hit.rows
   const { rows } = await fetchTrades(lawd, 6)

@@ -273,3 +273,7 @@ select { width: 100%; border: 1px solid #cfd4cd; border-radius: 11px; padding: 1
 .hub button { position: relative; }
 .hub .unread { margin-left: 5px; }
 .write-btn { margin-top: 10px; }
+.main-edit { margin-bottom: 12px; }
+.add-main { align-items: center; margin-bottom: 8px; }
+.add-main .chips { flex: 1; }
+.add-main .btn { flex: none; }

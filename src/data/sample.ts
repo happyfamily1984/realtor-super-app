@@ -1,6 +1,7 @@
 // 타입 정의 + 샘플 데이터
 // 실거래·뉴스·매물은 지금은 "샘플"이며, 추후 서버 연동 시 이 파일의 배열만 실제 데이터로 교체하면 된다.
 import { dayOffset } from '../lib/util'
+import { DEFAULT_MAIN, type MainComplex } from './main'
 
 export type Deal = '매매' | '전세' | '월세'
 export type Kind = '아파트' | '오피스텔' | '빌라' | '상가'
@@ -14,6 +15,8 @@ export interface Trade {
   prev?: number // 직전 동일면적 거래가(만원)
   dong?: string
   date: string
+  kind?: '아파트' | '오피스텔'
+  rent?: number // 전월세 자료의 월세(만원). 0 이면 전세
 }
 export interface News {
   id: string
@@ -89,9 +92,10 @@ export interface Settings {
   passcode: string // 서버 접속 암호 (APP_PASSCODE 를 설정한 경우)
   myRealtor: string // 네이버 부동산에 표시되는 우리 사무소 이름 (비우면 사무소 이름)
   myArticles: string // 우리 사무소의 네이버 매물번호 (쉼표로 구분)
+  mainComplexes: MainComplex[] // 메인 단지
 }
 
-export const DEFAULT_SETTINGS: Settings = { office: '우리 공인중개사사무소', region: '안양시 동안구', lawdCd: '41173', dong: '', passcode: '', myRealtor: '', myArticles: '' }
+export const DEFAULT_SETTINGS: Settings = { office: '우리 공인중개사사무소', region: '안양시 동안구', lawdCd: '41173', dong: '', passcode: '', myRealtor: '', myArticles: '', mainComplexes: DEFAULT_MAIN }
 
 export const TRADES: Trade[] = [
   { id: 't1', complex: '아현 숲마을', area: 84, floor: 12, price: 172000, prev: 168500, date: dayOffset(-1) },

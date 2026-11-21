@@ -3,7 +3,7 @@
 // 실제 전송 형식은 매물 등록 업체가 정해지면 naverUpload.ts 의 연결부만 바꾸면 된다.
 export const INTAKE_KINDS = ['아파트', '오피스텔', '빌라·연립', '단독·다가구', '상가', '사무실', '토지'] as const
 export const INTAKE_DEALS = ['매매', '전세', '월세'] as const
-export const INTAKE_REGIONS = ['안양시 동안구', '안양시 만안구', '과천시', '그 외'] as const
+export const INTAKE_REGIONS = ['안양시 동안구', '그 외'] as const
 export const DIRECTIONS = ['남향', '남동향', '남서향', '동향', '서향', '북동향', '북서향', '북향'] as const
 export const MOVE_IN = ['즉시 입주', '협의 가능', '날짜 지정'] as const
 export const HEATING = ['개별난방', '중앙난방', '지역난방'] as const

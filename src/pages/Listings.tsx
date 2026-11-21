@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chips, Confirm, Icon, PageHead, SampleBadge, Sheet, useData } from '../components/ui'
+import { matchMain } from '../data/main'
 import type { Deal, Kind, Listing, Trade } from '../data/sample'
 import { api } from '../lib/api'
 import { articleUrl, BOOKMARKLET, findDupes, mergeListings, parseCollectorFile, parseRegionNames, type CollectorFile } from '../lib/naverParse'
@@ -47,6 +48,10 @@ export default function Listings() {
   const [importing, setImporting] = useState(false)
   const [clearing, setClearing] = useState(false)
   const isSample = listings.some((l) => !l.src)
+  const isMain = (l: Listing) => !!matchMain(l.group ?? l.complex, settings.mainComplexes)
+  const hasMain = listings.some((l) => l.src && !l.gone && isMain(l))
+  const [scopePick, setScope] = useState<'메인 단지' | '전체 단지' | null>(null)
+  const scope = scopePick ?? (hasMain ? '메인 단지' : '전체 단지')
   const [showDupes, setShowDupes] = useState(false)
   const dupes = useMemo(() => findDupes(listings, settings.myRealtor || settings.office, settings.myArticles), [listings, settings.myRealtor, settings.office, settings.myArticles])
   // 새로 발견된 중복 광고는 한 번만 알린다
@@ -67,8 +72,8 @@ export default function Listings() {
   }, [dupes])
 
   const rows = useMemo(
-    () => active.filter((l) => (deal === '전체' || l.deal === deal) && (kind === '전체' || l.kind === kind) && (region === '전체' || (l.region && regionLabel(l.region) === region))),
-    [deal, kind, region, active, regionNames],
+    () => active.filter((l) => (scope === '전체 단지' || isMain(l)) && (deal === '전체' || l.deal === deal) && (kind === '전체' || l.kind === kind) && (region === '전체' || (l.region && regionLabel(l.region) === region))),
+    [deal, kind, region, active, regionNames, scope, settings.mainComplexes],
   )
   // 차트는 가격 단위가 같아야 하므로 한 가지 거래유형 기준
   const chartDeal = deal === '전체' ? '매매' : deal
@@ -148,6 +153,7 @@ export default function Listings() {
         </section>
       )}
       <section className="block filters">
+        {hasMain && <Chips options={['메인 단지', '전체 단지'] as const} value={scope} onChange={setScope} />}
         <Chips options={DEALS} value={deal} onChange={setDeal} />
         <Chips options={KINDS} value={kind} onChange={setKind} />
         {regionOptions.length > 2 && <Chips options={regionOptions} value={region} onChange={setRegion} />}

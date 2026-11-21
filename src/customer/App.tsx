@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import IntakeForm from '../components/IntakeForm'
 import { Chips, Confirm, Field, Icon, Sheet } from '../components/ui'
 import { blankIntake, type Intake } from '../data/intake'
+import { DEFAULT_MAIN, matchMain, type MainComplex } from '../data/main'
 import { api } from '../lib/api'
 import { exitApp, initNav, stayInApp, useBackLayer } from '../lib/nav'
 import { deviceId, enablePush, pushState } from '../lib/push'
@@ -15,7 +16,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'sell', label: '매물 내놓기', icon: 'contracts' },
   { id: 'chat', label: '상담', icon: 'consult' },
 ]
-const REGIONS: [string, string][] = [['41173', '안양시 동안구'], ['41171', '안양시 만안구'], ['41290', '과천시']]
+const REGIONS: [string, string][] = [['41173', '안양시 동안구']]
 
 interface Post {
   id: string
@@ -258,7 +259,7 @@ function Trades({ cid, perm, onPush }: { cid: string; perm: string; onPush: () =
       <PushBanner perm={perm} onPush={onPush} text="앱을 닫아도 새 실거래 신고를 알려 드립니다." />
       <section className="block">
         <h2>관심 아파트</h2>
-        {items.length === 0 && <p className="empty">안양시 동안구·만안구, 과천시의 아파트를 골라 주세요.</p>}
+        {items.length === 0 && <p className="empty">안양시 동안구의 아파트·오피스텔을 골라 주세요.</p>}
         <ul className="list">
           {items.map((w) => (
             <li key={`${w.lawd}${w.dong}${w.complex}`} className="card line">
@@ -311,29 +312,35 @@ function AddComplex({ picked, onToggle, onClose }: { picked: Watch[]; onToggle: 
   const names = REGIONS.map(([, n]) => n)
   const [region, setRegion] = useState(names[0])
   const [q, setQ] = useState('')
-  const [list, setList] = useState<{ complex: string; dong: string; n: number }[] | null>(null)
+  const [list, setList] = useState<{ complex: string; dong: string; kind?: string; n: number }[] | null>(null)
+  const [main, setMain] = useState<MainComplex[]>(DEFAULT_MAIN)
   const [err, setErr] = useState('')
   const lawd = REGIONS.find(([, n]) => n === region)![0]
 
   useEffect(() => {
     setList(null)
     setErr('')
-    api<{ complexes: { complex: string; dong: string; n: number }[] }>(`c?a=complexes&lawd=${lawd}`)
-      .then((r) => setList(r.complexes))
+    api<{ complexes: { complex: string; dong: string; kind?: string; n: number }[]; main?: MainComplex[] }>(`c?a=complexes&lawd=${lawd}`)
+      .then((r) => {
+        setList(r.complexes)
+        if (r.main?.length) setMain(r.main)
+      })
       .catch((e) => setErr(e.message))
   }, [lawd])
-  const rows = (list ?? []).filter((c) => !q.trim() || `${c.complex}${c.dong}`.includes(q.trim()))
+  const isMain = (c: { complex: string; kind?: string }) => !!matchMain(c.complex, main, c.kind)
+  // 중개사무소가 주로 다루는 단지를 맨 위에
+  const rows = (list ?? []).filter((c) => !q.trim() || `${c.complex}${c.dong}`.includes(q.trim())).sort((a, b) => Number(isMain(b)) - Number(isMain(a)))
   const has = (c: { complex: string; dong: string }) => picked.some((w) => w.lawd === lawd && w.complex === c.complex && w.dong === c.dong)
 
   return (
     <Sheet title="관심 아파트 고르기" onClose={onClose}>
-      <Chips options={names} value={region} onChange={setRegion} />
+      {names.length > 1 && <Chips options={names} value={region} onChange={setRegion} />}
       <Field label="아파트 또는 동 이름으로 찾기">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="예: 평촌, 래미안" />
       </Field>
       {err && <p className="warn-note">{err}</p>}
       {!list && !err && <p className="hint">아파트 목록을 불러오는 중…</p>}
-      {list && <p className="hint">최근 6개월 안에 매매 거래가 있었던 아파트 {list.length}곳입니다. 최대 20곳까지 고를 수 있습니다.</p>}
+      {list && <p className="hint">안양시 동안구에서 최근 6개월 안에 매매 거래가 있었던 아파트·오피스텔 {list.length}곳입니다. 최대 20곳까지 고를 수 있습니다.</p>}
       <ul className="list">
         {rows.slice(0, 80).map((c) => {
           const on = has(c)
@@ -343,7 +350,7 @@ function AddComplex({ picked, onToggle, onClose }: { picked: Watch[]; onToggle: 
               <div className="grow">
                 <b>{c.complex}</b>
                 <small>
-                  {c.dong}, 최근 거래 {c.n}건
+                  {isMain(c) && <span className="tag score">추천</span>} {c.kind ?? '아파트'} · {c.dong}, 최근 거래 {c.n}건
                 </small>
               </div>
             </li>

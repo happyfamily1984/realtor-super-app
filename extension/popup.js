@@ -10,6 +10,7 @@ async function show() {
 
 chrome.storage.local.get(['form']).then(({ form }) => {
   if (form) { $('gu').value = form.gu || ''; $('dong').value = form.dong || ''; $('type').value = form.type || 'apt'; }
+  else { $('gu').value = '41173'; $('dong').value = '관양동'; }
 });
 chrome.storage.onChanged.addListener(show);
 show();

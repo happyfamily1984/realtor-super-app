@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import ExportSheet, { type ExportContent } from '../components/ExportSheet'
-import { PageHead, SampleBadge, Sheet, useData, type PageProps } from '../components/ui'
+import { Chips, PageHead, SampleBadge, Sheet, useData, type PageProps } from '../components/ui'
+import { matchMain } from '../data/main'
 import { NEWS, TRADES, type News, type Trade } from '../data/sample'
 import { api } from '../lib/api'
 import { briefingComment, renderCards, tradeStats } from '../lib/cardnews'
@@ -14,6 +15,8 @@ interface Insight {
 interface Live {
   key: string
   trades: Trade[] | null // null = 불러오지 못함 (샘플 표시)
+  rents: Trade[]
+  notes: string[]
   news: News[] | null
   tradeErr: string
   newsErr: string
@@ -36,15 +39,17 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
     if (cache?.key === key) return setLive(cache)
     let alive = true
     setLive(null)
-    const q = new URLSearchParams({ lawd: settings.lawdCd, dong: settings.dong, months: '3' })
+    const q = new URLSearchParams({ lawd: settings.lawdCd, dong: settings.dong, months: '6' })
     Promise.allSettled([
-      api<{ trades: Trade[] }>(`trades?${q}`),
+      api<{ trades: Trade[]; rents?: Trade[]; notes?: string[] }>(`trades?${q}`),
       api<{ news: News[] }>(`news?${new URLSearchParams({ q: `${settings.region} 부동산` })}`),
     ]).then(([t, n]) => {
       const msg = (r: PromiseSettledResult<unknown>) => (r.status === 'rejected' ? (r.reason as Error).message : '')
       cache = {
         key,
         trades: t.status === 'fulfilled' ? t.value.trades : null,
+        rents: t.status === 'fulfilled' ? (t.value.rents ?? []) : [],
+        notes: t.status === 'fulfilled' ? (t.value.notes ?? []) : [],
         news: n.status === 'fulfilled' && n.value.news.length ? n.value.news : null,
         tradeErr: msg(t),
         newsErr: msg(n),
@@ -58,7 +63,20 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
   }, [key])
 
   const liveTrades = !!live?.trades
-  const trades = live?.trades ?? TRADES
+  // 보는 범위: 메인 단지만 / 지역 전체
+  const main = settings.mainComplexes
+  const [scope, setScope] = useState<'메인 단지' | '지역 전체'>('메인 단지')
+  const onlyMain = liveTrades && scope === '메인 단지' && main.length > 0
+  const toMain = (rows: Trade[]) => rows.flatMap((t) => { const m = matchMain(t.complex, main, t.kind); return m ? [{ ...t, complex: m.name }] : [] })
+  const allTrades = live?.trades ?? TRADES
+  const trades = onlyMain ? toMain(allTrades) : allTrades
+  const rents = onlyMain ? toMain(live?.rents ?? []) : (live?.rents ?? [])
+  // 메인 단지별 요약: 최근 매매, 6개월 건수, 최근 전월세
+  const mainRows = main.map((m) => {
+    const sales = toMain(allTrades).filter((t) => t.complex === m.name)
+    const lease = toMain(live?.rents ?? []).filter((t) => t.complex === m.name)
+    return { m, n: sales.length, last: sales[0], lease: lease[0], leaseN: lease.length }
+  })
   const insight = live?.insight ?? null
   const news = (live?.news ?? NEWS).map((n) => ({ ...n, summary: insight?.news.find((x) => x.title === n.title)?.summary ?? n.summary }))
   // AI 가 고른 뉴스가 있으면 그것을 앞으로
@@ -121,10 +139,18 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
   return (
     <>
       <PageHead title="데일리 브리핑" sub={`${settings.region} · 실거래와 뉴스 요약`} right={!loading && !liveTrades ? <SampleBadge /> : undefined} />
+      {liveTrades && main.length > 0 && (
+        <section className="block filters">
+          <Chips options={['메인 단지', '지역 전체'] as const} value={scope} onChange={setScope} />
+        </section>
+      )}
 
       <section className="block">
         {loading && <p className="hint">실거래와 뉴스를 불러오는 중…</p>}
         {live && !liveTrades && <p className="warn-note">실거래는 샘플입니다 · {live.tradeErr}</p>}
+        {live?.notes.map((n) => (
+          <p key={n} className="warn-note">{n}</p>
+        ))}
         {live && !live.news && <p className="warn-note">뉴스는 샘플입니다{live.newsErr ? ` · ${live.newsErr}` : ''}</p>}
         <div className="kpis">
           <div>
@@ -166,9 +192,35 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
         </button>
       </section>
 
+      {liveTrades && main.length > 0 && (
+        <section className="block">
+          <h2>메인 단지 현황</h2>
+          <ul className="list">
+            {mainRows.map(({ m, n, last, lease, leaseN }) => (
+              <li key={m.name} className="card">
+                <div className="line">
+                  <div className="grow">
+                    <span className="tag">{m.kind}</span>
+                    <b className="title">{m.name}</b>
+                  </div>
+                  <div className="right">
+                    <b className="price">{last ? won(last.price) : '-'}</b>
+                    <small>{last ? `${last.area}㎡ ${last.floor}층, ${shortDate(last.date)}` : '최근 6개월 매매 없음'}</small>
+                  </div>
+                </div>
+                <small>
+                  매매 {n}건 (6개월){leaseN ? `, 전월세 ${leaseN}건 (3개월)` : ''}
+                  {lease ? `, 최근 ${lease.rent ? `월세 ${won(lease.price)}/${lease.rent}만` : `전세 ${won(lease.price)}`} ${lease.area}㎡` : ''}
+                </small>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="block">
         <h2>최근 실거래{liveTrades ? ` (${trades.length}건)` : ''}</h2>
-        {trades.length === 0 && <p className="empty">최근 3개월간 신고된 매매 실거래가 없습니다. 홈 &gt; 설정에서 지역을 확인해 주세요.</p>}
+        {trades.length === 0 && <p className="empty">{onlyMain ? '메인 단지에 최근 6개월간 신고된 매매 실거래가 없습니다.' : '최근 6개월간 신고된 매매 실거래가 없습니다. 홈 > 설정에서 지역을 확인해 주세요.'}</p>}
         <ul className="list">
           {trades.slice(0, 30).map((t) => {
             const d = t.prev ? t.price - t.prev : 0
@@ -189,6 +241,28 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
           })}
         </ul>
       </section>
+
+      {rents.length > 0 && (
+        <section className="block">
+          <h2>최근 전월세 ({rents.length}건)</h2>
+          <ul className="list">
+            {rents.slice(0, 15).map((t) => (
+              <li key={t.id} className="card line">
+                <div className="grow">
+                  <b>{t.complex}</b>
+                  <small>
+                    전용 {t.area}㎡ · {t.floor}층 · {shortDate(t.date)}
+                  </small>
+                </div>
+                <div className="right">
+                  <b>{t.rent ? `${won(t.price)} / ${t.rent}만` : won(t.price)}</b>
+                  <small>{t.rent ? '월세' : '전세'}</small>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="block">
         <h2>부동산 뉴스</h2>
