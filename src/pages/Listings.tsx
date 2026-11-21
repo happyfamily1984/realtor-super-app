@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Chips, Confirm, Icon, PageHead, SampleBadge, Sheet, useData } from '../components/ui'
+import { Chips, Confirm, Icon, PageHead, Sheet, useData } from '../components/ui'
 import { matchMain } from '../data/main'
-import type { Deal, Kind, Listing, Trade } from '../data/sample'
-import { ComplexSheet } from '../components/MainData'
+import type { Deal, Kind, Listing } from '../data/sample'
 import { api } from '../lib/api'
-import { useMyData } from '../lib/mydata'
 import { articleUrl, BOOKMARKLET, findDupes, mergeListings, parseCollectorFile, parseRegionNames, type CollectorFile } from '../lib/naverParse'
 import { daysUntil, shortDate, shrinkImage, today, toast, uid, usePersist, won } from '../lib/util'
 
@@ -13,12 +11,12 @@ const KINDS = ['전체', '아파트', '오피스텔', '빌라', '상가'] as con
 
 export const listingPrice = (l: Listing) => (l.deal === '월세' ? `${won(l.price)} / ${l.rent}만` : won(l.price))
 
-export default function Listings() {
+/** 네이버에서 수집한 매물 (시장 매물). 내 매물과 겹치는 다른 중개사무소 광고도 여기서 확인한다. */
+export default function NaverListings() {
   const [deal, setDeal] = useState<(typeof DEALS)[number]>('전체')
   const [kind, setKind] = useState<(typeof KINDS)[number]>('전체')
   const [view, setView] = useState<'목록' | '차트'>('목록')
-  const { listings, setListings, settings } = useData()
-  const [trades, setTrades] = useState<Trade[]>([])
+  const { listings, setListings, settings, properties } = useData()
   const [regionNames, setRegionNames] = usePersist<Record<string, string>>('regionNames', {})
   const [region, setRegion] = useState('전체')
   const regionLabel = (code: string) => regionNames[code] ?? (code.endsWith('00000') ? `구 전체(${code.slice(0, 5)})` : `지역 ${code}`)
@@ -27,37 +25,16 @@ export default function Listings() {
   const lastCollect = listings.reduce((m, l) => (l.lastSeen && l.lastSeen > m ? l.lastSeen : m), '')
   const staleDays = lastCollect ? -daysUntil(lastCollect) : 0
 
-  // 수집해 둔 단지에 새 실거래 신고가 있으면 다시 수집하라고 알려 준다
-  useEffect(() => {
-    api<{ trades: Trade[] }>(`trades?${new URLSearchParams({ lawd: settings.lawdCd, dong: settings.dong, months: '3' })}`)
-      .then((r) => setTrades(r.trades))
-      .catch(() => {})
-  }, [settings.lawdCd, settings.dong])
-  const tradedGroups = useMemo(() => {
-    let seen: string[] | null = null
-    try {
-      seen = JSON.parse(localStorage.getItem('seenTrades') || 'null')
-    } catch {
-      /* 무시 */
-    }
-    if (!seen) return []
-    const known = new Set(seen)
-    const norm = (s: string) => s.replace(/\s/g, '')
-    const groups = [...new Set(active.map((l) => l.group ?? l.complex))]
-    const fresh = trades.filter((t) => !known.has(t.id))
-    return groups.filter((g) => fresh.some((t) => norm(g).includes(norm(t.complex)) || norm(t.complex).includes(norm(g))))
-  }, [trades, active])
   const [importing, setImporting] = useState(false)
   const [clearing, setClearing] = useState(false)
-  const isSample = listings.some((l) => !l.src)
   const isMain = (l: Listing) => !!matchMain(l.group ?? l.complex, settings.mainComplexes)
   const hasMain = listings.some((l) => l.src && !l.gone && isMain(l))
   const [scopePick, setScope] = useState<'메인 단지' | '전체 단지' | null>(null)
   const scope = scopePick ?? (hasMain ? '메인 단지' : '전체 단지')
   const [showDupes, setShowDupes] = useState(false)
-  const { data: my } = useMyData()
-  const [openComplex, setOpenComplex] = useState<string | null>(null)
-  const dupes = useMemo(() => findDupes(listings, settings.myRealtor || settings.office, settings.myArticles), [listings, settings.myRealtor, settings.office, settings.myArticles])
+  // 내 매물(매물장)에 적어 둔 네이버 매물번호로 우리 광고를 알아본다
+  const myNos = properties.map((p) => p.articleNo).filter(Boolean).join(',')
+  const dupes = useMemo(() => findDupes(listings, settings.myRealtor || settings.office, myNos), [listings, settings.myRealtor, settings.office, myNos])
   // 새로 발견된 중복 광고는 한 번만 알린다
   useEffect(() => {
     const key = (d: (typeof dupes)[number]) => `${d.mine.key}>${d.other.key}`
@@ -114,19 +91,14 @@ export default function Listings() {
   return (
     <>
       <PageHead
-        title="지역 매물"
-        sub="매물 정리·시각화"
+        title="네이버 수집 매물"
+        sub="수집한 시장 매물과 중복 광고 확인"
         right={
           <button className="btn small" onClick={() => setImporting(true)}>
             <Icon name="plus" size={18} /> 가져오기
           </button>
         }
       />
-      {isSample && (
-        <section className="block">
-          <SampleBadge /> <small>‘가져오기’로 실제 매물을 넣으면 샘플은 사라집니다.</small>
-        </section>
-      )}
       {dupes.length > 0 && (
         <section className="block">
           <button className="notice" onClick={() => setShowDupes(true)}>
@@ -138,38 +110,14 @@ export default function Listings() {
           </button>
         </section>
       )}
-      {my && my.complexes.some((c) => c.listings) && (
-        <section className="block">
-          <h2>메인 단지 네이버 매물</h2>
-          <ul className="list">
-            {my.complexes
-              .filter((c) => c.listings)
-              .map((c) => (
-                <li key={c.id} className="card line" onClick={() => setOpenComplex(c.id)}>
-                  <div className="grow">
-                    <b>{c.name}</b>
-                    <small>
-                      {shortDate(c.listings!.capturedAt)} 기준{c.listings!.stale ? ' (7일 넘음)' : ''}
-                      {c.listings!.suspects ? ` · 중복 의심 ${c.listings!.suspects}건` : ''}
-                    </small>
-                  </div>
-                  <b className="price">{c.listings!.total}건</b>
-                </li>
-              ))}
-          </ul>
-          <p className="hint">매일 오전 10시에 받은 매물입니다. 단지를 누르면 호가와 실거래 비교, 매물 목록이 나옵니다. 손님 맞춤 추천에도 이 매물을 씁니다.</p>
-        </section>
-      )}
-      {my && openComplex && my.complexes.find((c) => c.id === openComplex) && <ComplexSheet complex={my.complexes.find((c) => c.id === openComplex)!} data={my} onClose={() => setOpenComplex(null)} />}
       {lastCollect && (
         <section className="block">
-          {staleDays >= STALE_DAYS || tradedGroups.length > 0 ? (
+          {staleDays >= STALE_DAYS ? (
             <button className="notice" onClick={() => setImporting(true)}>
               <Icon name="bell" />
               <span>
                 <b>매물을 다시 수집해 주세요</b>
-                {staleDays >= STALE_DAYS && <small>마지막 수집 후 {staleDays}일이 지났습니다.</small>}
-                {tradedGroups.length > 0 && <small>새 실거래 신고: {tradedGroups.slice(0, 3).join(', ')}{tradedGroups.length > 3 ? ` 외 ${tradedGroups.length - 3}곳` : ''}</small>}
+                <small>마지막 수집 후 {staleDays}일이 지났습니다.</small>
               </span>
             </button>
           ) : (
@@ -213,7 +161,7 @@ export default function Listings() {
       {view === '목록' ? (
         <section className="block">
           {rows.length === 0 && <p className="empty">조건에 맞는 매물이 없습니다.</p>}
-          {!isSample && listings.length > 0 && (
+          {listings.length > 0 && (
             <button className="link" onClick={() => setClearing(true)}>
               매물 전체 비우기
             </button>
@@ -356,7 +304,6 @@ export default function Listings() {
           onDone={(items) => {
             const m = mergeListings(listings, items)
             setListings(m.list)
-            if (trades.length) localStorage.setItem('seenTrades', JSON.stringify(trades.map((t) => t.id)))
             setImporting(false)
             toast(`매물 ${items.length}건 수집 · 신규 ${m.added} · 가격변동 ${m.changed} · 사라짐 ${m.gone}`)
           }}

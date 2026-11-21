@@ -1,24 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Confirm, DataCtx, Icon, type Intent, type Tab } from './components/ui'
-import { DEFAULT_SETTINGS, LISTINGS, SAMPLE_CONSULTS, SAMPLE_CONTRACTS, type Consult, type Contract, type Listing, type Settings } from './data/sample'
+import type { Property } from './data/property'
+import { DEFAULT_SETTINGS, SAMPLE_IDS, type Consult, type Contract, type Listing, type Settings } from './data/sample'
 import { exitApp, initNav, stayInApp, useBackLayer } from './lib/nav'
 import { DEFAULT_MAIN, type MainComplex } from './data/main'
-import { loadMainConfig } from './lib/mydata'
+import { loadMainConfig } from './lib/mainConfig'
 import { registerSw } from './lib/push'
 import { mergeListings, parseCollectorFile, parseRegionNames, type CollectorFile } from './lib/naverParse'
 import { toast, usePersist } from './lib/util'
-import Briefing from './pages/Briefing'
 import ConsultPage from './pages/Consult'
 import Contracts from './pages/Contracts'
 import Home from './pages/Home'
-import Listings from './pages/Listings'
+import More from './pages/More'
+import Properties from './pages/Properties'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'home', label: '홈' },
-  { id: 'briefing', label: '브리핑' },
+  { id: 'consult', label: '손님' },
   { id: 'listings', label: '매물' },
-  { id: 'consult', label: '상담' },
   { id: 'contracts', label: '계약' },
+  { id: 'more', label: '더보기' },
 ]
 
 export default function App() {
@@ -35,9 +36,18 @@ export default function App() {
       .then(setRemoteMain)
       .catch(() => {})
   }, [])
-  const [listings, setListings] = usePersist<Listing[]>('listings', LISTINGS)
-  const [consults, setConsults] = usePersist<Consult[]>('consults', SAMPLE_CONSULTS)
-  const [contracts, setContracts] = usePersist<Contract[]>('contracts', SAMPLE_CONTRACTS)
+  const [listings, setListings] = usePersist<Listing[]>('listings', [])
+  const [consults, setConsults] = usePersist<Consult[]>('consults', [])
+  const [contracts, setContracts] = usePersist<Contract[]>('contracts', [])
+  const [properties, setProperties] = usePersist<Property[]>('properties', [])
+  // 예전 버전이 넣어 둔 샘플 자료는 한 번 지운다 (실제 업무 자료만 남긴다)
+  useEffect(() => {
+    if (localStorage.getItem('samplesCleared')) return
+    localStorage.setItem('samplesCleared', '1')
+    setConsults((p) => p.filter((x) => !SAMPLE_IDS.has(x.id)))
+    setContracts((p) => p.filter((x) => !SAMPLE_IDS.has(x.id)))
+    setListings((p) => p.filter((x) => !SAMPLE_IDS.has(x.id)))
+  }, [])
   const [tab, setTab] = useState<Tab>('home')
   const [intent, setIntent] = useState<Intent>(null)
   const [askExit, setAskExit] = useState(false)
@@ -68,7 +78,7 @@ export default function App() {
       setListKey((k) => k + 1)
       setIntent(null)
       setTab('listings')
-      toast(`수집기에서 매물 ${items.length}건 · 신규 ${m.added} · 가격변동 ${m.changed} · 사라짐 ${m.gone}`)
+      toast(`네이버 수집 탭에 반영:  매물 ${items.length}건 · 신규 ${m.added} · 가격변동 ${m.changed} · 사라짐 ${m.gone}`)
     }
     window.addEventListener('message', h)
     return () => window.removeEventListener('message', h)
@@ -104,8 +114,9 @@ export default function App() {
       const g = new URL(url, location.href).searchParams.get('go')
       if (g === 'chat' || g === 'intake') {
         setIntent(g)
-        setTab('consult')
+        setTab(g === 'chat' ? 'consult' : 'listings')
         setConsultKey((k) => k + 1)
+        setListKey((k) => k + 1)
       }
     }
     open(location.href)
@@ -123,14 +134,14 @@ export default function App() {
     )
 
   return (
-    <DataCtx.Provider value={{ settings, setSettings, consults, setConsults, contracts, setContracts, listings, setListings }}>
+    <DataCtx.Provider value={{ settings, setSettings, consults, setConsults, contracts, setContracts, listings, setListings, properties, setProperties }}>
       <div className="app">
         <main>
           {tab === 'home' && <Home go={go} />}
-          {tab === 'briefing' && <Briefing {...page} />}
-          {tab === 'listings' && <Listings key={listKey} />}
           {tab === 'consult' && <ConsultPage key={consultKey} {...page} />}
+          {tab === 'listings' && <Properties key={listKey} {...page} go={go} />}
           {tab === 'contracts' && <Contracts {...page} />}
+          {tab === 'more' && <More />}
         </main>
         <nav className="tabbar" aria-label="하단 메뉴">
           {TABS.map((t) => (

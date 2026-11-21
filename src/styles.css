@@ -283,3 +283,16 @@ select { width: 100%; border: 1px solid #cfd4cd; border-radius: 11px; padding: 1
 .notes { list-style: disc; padding-left: 18px; font-size: 13.5px; color: #46514c; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .warn-note p { margin-top: 4px; }
 .sheet-body > .warn-note, .sheet-body > .ai-box { margin-bottom: 12px; }
+
+/* 개편: 내 매물·계약서·더보기 */
+.status.p-접수 { background: #fdebe5; color: #b63a1e; }
+.status.p-광고중 { background: var(--brand-soft); color: var(--brand-ink); }
+.status.p-계약중 { background: #e5eefc; color: #1c53b8; }
+.status.p-거래완료, .status.p-보류 { background: #eef0ec; color: var(--sub); }
+.act-row { margin-top: 14px; }
+.doc-btn { margin: 4px 0 12px; }
+.doc-frame { width: 100%; height: 68dvh; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.menu-row { width: 100%; text-align: left; margin-bottom: 8px; color: var(--ink); }
+.menu-row > svg:first-child { color: var(--brand); }
+.posts-list { margin-top: 4px; }
+.filters > input { min-height: 44px; }

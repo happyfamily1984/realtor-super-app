@@ -69,6 +69,10 @@ export default handler(async (req) => {
       await setJ('profile', { office: str(b.office, 40), main })
       return { ok: true }
     }
+    // 내 매물 사진 올리기
+    case 'image':
+      return { url: await saveImage(String(b.data ?? '')) }
+
     case 'vapid':
       return { key: await publicKey() }
     case 'subscribe':

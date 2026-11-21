@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Chips, Confirm, Field, Icon, PageHead, Sheet, useData, type PageProps } from '../components/ui'
 import type { Contract, Deal } from '../data/sample'
 import { api } from '../lib/api'
+import { blankDoc } from '../lib/contractDoc'
+import ContractDocSheet from './ContractDocSheet'
 import { upcoming, type Schedule } from '../lib/match'
 import { useBackLayer } from '../lib/nav'
 import { dday, koDate, photoDel, photoGet, photoPut, shrinkImage, shrinkSrc, today, toast, uid, won } from '../lib/util'
@@ -46,6 +48,7 @@ export default function Contracts({ intent, clearIntent }: PageProps) {
   const [delId, setDelId] = useState<string | null>(null)
   const [perm, setPerm] = useState(() => ('Notification' in window ? Notification.permission : 'unsupported'))
   const [aiBusy, setAiBusy] = useState(false)
+  const [writing, setWriting] = useState(false)
   const [aiResult, setAiResult] = useState<{ id: string; r: ContractAI } | null>(null)
   const events = upcoming(contracts)
   const detail = contracts.find((c) => c.id === detailId)
@@ -53,7 +56,20 @@ export default function Contracts({ intent, clearIntent }: PageProps) {
   useEffect(() => {
     if (intent === 'newContract') {
       clearIntent()
-      setForm(blank())
+      // 내 매물에서 '계약 등록'으로 넘어왔으면 그 매물 내용을 채워 준다
+      let pre: any = null
+      try {
+        pre = JSON.parse(sessionStorage.getItem('contractPrefill') || 'null')
+      } catch {
+        /* 무시 */
+      }
+      sessionStorage.removeItem('contractPrefill')
+      const sale = pre?.deal === '매매'
+      setForm(
+        pre
+          ? { ...blank(), title: pre.title, deal: pre.deal, price: pre.price, client: `${sale ? '매도' : '임대'} ${pre.owner || ''}`.trim(), propertyId: pre.propertyId, doc: { ...blankDoc(), address: pre.address ? `${pre.address} ${pre.title}`.trim() : pre.title, area: pre.area ? String(pre.area) : '', rent: pre.rent || 0, seller: { name: pre.owner || '', address: '', phone: pre.ownerPhone || '' } } }
+          : blank(),
+      )
     }
   }, [intent])
   useEffect(() => notifySoon(events), [perm])
@@ -127,7 +143,7 @@ export default function Contracts({ intent, clearIntent }: PageProps) {
     <>
       <PageHead
         title="계약 관리"
-        sub="진행 상황 · 중도금 · 잔금 일정"
+        sub="계약서 작성 · 중도금 · 잔금 일정"
         right={
           <button className="btn small" onClick={() => setForm(blank())}>
             <Icon name="plus" size={18} /> 등록
@@ -258,6 +274,9 @@ export default function Contracts({ intent, clearIntent }: PageProps) {
             </div>
           )}
 
+          <button className="btn block-btn doc-btn" onClick={() => setWriting(true)}>
+            {detail.doc ? '계약서 이어서 작성·인쇄' : '계약서 작성'}
+          </button>
           <div className="row">
             <button className="btn ghost" onClick={() => setForm(detail)}>
               수정
@@ -269,6 +288,7 @@ export default function Contracts({ intent, clearIntent }: PageProps) {
         </Sheet>
       )}
 
+      {detail && writing && <ContractDocSheet contract={detail} onClose={() => setWriting(false)} onSave={(doc, v) => patch(detail.id, { ...v, doc })} />}
       {aiResult && (
         <Sheet
           title="AI가 읽은 계약 내용"

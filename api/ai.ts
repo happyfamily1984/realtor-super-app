@@ -1,5 +1,5 @@
 // 제미나이 AI 분석
-// POST /api/ai  { task: 'briefing' | 'contract' | 'listings', ... }
+// POST /api/ai  { task: 'contract' | 'listings', ... }
 import { gemini, handler, HttpError, imagePart, type Part } from './_lib.js'
 
 const images = (list: unknown, max: number): Part[] => {
@@ -7,15 +7,6 @@ const images = (list: unknown, max: number): Part[] => {
   if (list.length > max) throw new HttpError(400, `사진은 한 번에 ${max}장까지 분석할 수 있습니다`)
   return list.map((d) => imagePart(String(d)))
 }
-
-const BRIEFING = `당신은 한국 공인중개사의 부동산 오픈채팅방 운영을 돕는 분석가입니다.
-아래 지역의 최근 아파트 매매 실거래와 뉴스 제목을 보고 오늘의 브리핑을 작성하세요.
-- 주어진 자료에 있는 사실만 사용하고, 없는 수치나 사실을 지어내지 마세요.
-- 가격 전망을 단정하거나 매수·매도를 권유하지 마세요.
-- 쉬운 존댓말로 간결하게 쓰세요.
-다음 JSON 으로만 답하세요:
-{"comment":"시장 흐름 요약 2~3문장","points":["핵심 포인트(40자 이내)","...","..."],"news":[{"title":"입력된 뉴스 제목 그대로","summary":"이 뉴스가 지역 시장에 주는 의미 한 문장"}]}
-points 는 3개, news 는 지역 부동산과 관련 깊은 순으로 최대 4개.`
 
 const CONTRACT = `첨부한 사진은 한국의 부동산 계약서입니다. 내용을 읽어 아래 JSON 으로만 답하세요.
 - 금액은 모두 "만원" 단위 정수 (예: 12억 5천만원 → 125000). 날짜는 YYYY-MM-DD.
@@ -34,8 +25,6 @@ export default handler(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST 로 요청해 주세요')
   const b = req.body ?? {}
   switch (b.task) {
-    case 'briefing':
-      return gemini([{ text: `${BRIEFING}\n\n자료:\n${JSON.stringify({ region: b.region, stats: b.stats, trades: b.trades, news: b.news }).slice(0, 20000)}` }])
     case 'contract': {
       const imgs = images(b.images, 4)
       if (!imgs.length) throw new HttpError(400, '계약서 사진을 먼저 첨부해 주세요')

@@ -6,7 +6,7 @@ import { Chips, Field, Icon } from './ui'
 
 const OCCUPIED = ['소유자 거주', '임차인 거주', '공실'] as const
 
-export default function IntakeForm({ value: v, onChange }: { value: Intake; onChange: (v: Intake) => void }) {
+export default function IntakeForm({ value: v, onChange, staff }: { value: Intake; onChange: (v: Intake) => void; staff?: boolean }) {
   const input = useRef<HTMLInputElement>(null)
   const set = <K extends keyof Intake>(k: K, val: Intake[K]) => onChange({ ...v, [k]: val })
   const num = (k: keyof Intake, label: string, hint = '') => (
@@ -30,7 +30,7 @@ export default function IntakeForm({ value: v, onChange }: { value: Intake; onCh
 
   return (
     <>
-      <h3 className="form-h">내놓는 분</h3>
+      <h3 className="form-h">{staff ? '소유자(의뢰인)' : '내놓는 분'}</h3>
       <div className="row">
         {txt('ownerName', '이름', '홍길동')}
         {txt('ownerPhone', '연락처', '010-0000-0000', 'tel')}
@@ -148,6 +148,7 @@ export default function IntakeForm({ value: v, onChange }: { value: Intake; onCh
         />
       </Field>
 
+      {!staff && (
       <label className="check-row agree">
         <input type="checkbox" checked={v.agree} onChange={(e) => set('agree', e.target.checked)} />
         <span>
@@ -155,6 +156,7 @@ export default function IntakeForm({ value: v, onChange }: { value: Intake; onCh
           <small>이름·연락처·매물 정보를 매물 중개와 광고 등록을 위해 중개사무소에 제공하며, 의뢰가 끝나면 삭제를 요청할 수 있습니다.</small>
         </span>
       </label>
+      )}
     </>
   )
 }
