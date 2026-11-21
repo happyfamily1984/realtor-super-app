@@ -11,6 +11,7 @@ import { byComplex, byMonth, eok } from './summary.js';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { searchCourt, matchComplex, normalizeItem, fetchDetail } from './auction.js';
+import { readInbox, summarizeListings, listingInsights } from './listings.js';
 import { analyze, dealsOf, insights, complexPost, auctionPost, refFor } from './main.js';
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -81,9 +82,14 @@ if (cmd === 'molit' || cmd === 'summary') {
       } catch (e) { notes.push(`오피스텔 실거래를 받지 못했어요: ${e.message}`); }
     }
   }
+  // 네이버 매물(호가): inbox/naver 에 넣어 둔 파일
+  const inbox = readInbox(new URL('../inbox/naver', import.meta.url).pathname);
+  notes.push(...inbox.problems.map((p) => `네이버 매물 ${p}`));
   const complexes = cfg.complexes.map((c) => {
     const a = analyze(c, dealsOf(c, deals[c.kind]), today);
     const has = a.areas.length > 0;
+    const listings = inbox.out[c.id] ? summarizeListings(inbox.out[c.id], a, today) : null;
+    if (listings?.total) return { id: c.id, name: c.name, kind: c.kind, lawdCd: c.lawdCd, region: c.region, ...a, hasData: has, listings, insights: [...(has ? insights(c, a) : []), ...listingInsights(listings)], post: has ? complexPost(c, a, today, listingInsights(listings)) : null };
     return { id: c.id, name: c.name, kind: c.kind, lawdCd: c.lawdCd, region: c.region, ...a, hasData: has, insights: has ? insights(c, a) : [c.kind === 'offi' ? '오피스텔 실거래 자료가 아직 연결되지 않았어요.' : '최근 실거래 자료가 없어요.'], post: has ? complexPost(c, a, today) : null };
   });
 
