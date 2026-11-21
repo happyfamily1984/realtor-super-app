@@ -56,7 +56,7 @@ const norm = (s) => String(s ?? '').replace(/[\s()·\-]/g, '');
 export function matchComplex(raw, complexes) {
   const text = norm(`${raw.buldNm} ${raw.printSt} ${raw.rdAddrSub}`);
   return complexes.find((c) =>
-    (c.umdNm && c.jibun && raw.hjguDong === c.umdNm && String(raw.daepyoLotno).trim() === c.jibun) ||
+    (c.umdNm && raw.hjguDong === c.umdNm && [c.jibun, ...(c.jibunAlt ?? [])].filter(Boolean).includes(String(raw.daepyoLotno).trim())) ||
     (c.words ?? []).some((ws) => ws.every((w) => text.includes(norm(w))))) ?? null;
 }
 

@@ -19,6 +19,7 @@ test('경매 물건을 법정동+지번으로 단지에 맞춤 (이름이 "한�
   assert.equal(matchComplex({ hjguDong: '관양동', daepyoLotno: '1591', buldNm: '', printSt: '경기도 안양시 동안구 관양동 1591 5층501호', rdAddrSub: '' }, cfg.complexes).id, 'acro-tower');
   assert.equal(matchComplex({ hjguDong: '관양동', daepyoLotno: '1591-6', buldNm: '평촌푸르지오센트럴파크', printSt: '', rdAddrSub: '' }, cfg.complexes), null);
   assert.equal(matchComplex({ hjguDong: '관양동', daepyoLotno: '1588-18', buldNm: '', printSt: '', rdAddrSub: '' }, cfg.complexes).id, 'hillstate-pyeongchon');
+  assert.equal(matchComplex({ hjguDong: '관양동', daepyoLotno: '1588-14', buldNm: '', printSt: '', rdAddrSub: '' }, cfg.complexes).id, 'hillstate-pyeongchon');
   assert.equal(matchComplex({ hjguDong: '관양동', daepyoLotno: '9', buldNm: '힐스테이트에코평촌', printSt: '', rdAddrSub: '' }, cfg.complexes).id, 'hillstate-pyeongchon');
 });
 
@@ -78,8 +79,8 @@ test('단지 분석: 면적별 중간값·1년 전 대비·전세가율, 취소 
 
 test('실거래 고르기: 지번이 같거나 이름 낱말이 맞으면 그 단지', () => {
   const hill = cfg.complexes.find((c) => c.id === 'hillstate-pyeongchon');
-  const ds = [{ aptNm: '힐스테이트 에코 평촌', umdNm: '관양동', jibun: '0' }, { aptNm: '이름없음', umdNm: '관양동', jibun: '1588-18' }, { aptNm: '공작아파트', umdNm: '관양동', jibun: '1588' }, { aptNm: '비산힐스테이트', umdNm: '비산동', jibun: '1' }];
-  assert.equal(dealsOf(hill, ds).length, 2);
+  const ds = [{ aptNm: '힐스테이트 에코 평촌', umdNm: '관양동', jibun: '0' }, { aptNm: '이름없음', umdNm: '관양동', jibun: '1588-18' }, { aptNm: '이름없음2', umdNm: '관양동', jibun: '1588-14' }, { aptNm: '공작아파트', umdNm: '관양동', jibun: '1588' }, { aptNm: '비산힐스테이트', umdNm: '비산동', jibun: '1' }];
+  assert.equal(dealsOf(hill, ds).length, 3);
   assert.equal(dealsOf(cfg.complexes.find((c) => c.id === 'gongjak-buyoung'), ds).length, 1);
 });
 

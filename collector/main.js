@@ -18,7 +18,7 @@ export function complexId(lawdCd, umdNm, jibun, aptNm) {
 
 export function dealsOf(cfg, deals) {
   // 법정동+지번이 같거나, 이름에 낱말이 모두 들어 있으면 그 단지
-  return deals.filter((d) => (cfg.umdNm && cfg.jibun && d.umdNm === cfg.umdNm && d.jibun === cfg.jibun) ||
+  return deals.filter((d) => (cfg.umdNm && d.umdNm === cfg.umdNm && [cfg.jibun, ...(cfg.jibunAlt ?? [])].filter(Boolean).includes(d.jibun)) ||
     (cfg.words ?? []).some((ws) => ws.every((w) => norm(d.aptNm).includes(norm(w)))));
 }
 
