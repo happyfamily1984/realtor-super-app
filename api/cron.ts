@@ -16,12 +16,12 @@ export default async function cron(req: { headers: Record<string, string | strin
   if (secret && req.headers.authorization !== `Bearer ${secret}`) return res.status(401).json({ error: '권한이 없습니다' })
   try {
     const watch = await hallJ<{ lawd: string; complex: string; dong: string }[]>('watch')
-    // 표시 이름은 수집기와 함께 쓰는 단지 설정 파일에서 받는다 (못 받으면 앱에 든 기본 목록)
+    // 표시 이름은 매일 받는 네이버 매물 자료에 든 단지 목록에서 받는다 (못 받으면 앱에 든 기본 목록)
     let main: MainComplex[] = DEFAULT_MAIN
     try {
-      const r = await fetch('https://raw.githubusercontent.com/happyfamily1984/realtor-super-app/main/config/main-complexes.json')
-      const j = (await r.json()) as { complexes: { name: string; kind: string; aliases?: string[] }[] }
-      if (j.complexes?.length) main = j.complexes.map((c) => ({ name: c.name, kind: c.kind === 'offi' ? '오피스텔' : '아파트', aliases: c.aliases ?? [] }))
+      const r = await fetch('https://raw.githubusercontent.com/happyfamily1984/real-estate-news-finder/store/main/my.json')
+      const j = (await r.json()) as { complexes: { name: string; kind: string; aptNm?: string }[] }
+      if (j.complexes?.length) main = j.complexes.map((c) => ({ name: c.name, kind: c.kind === 'offi' ? '오피스텔' : '아파트', aliases: [...(DEFAULT_MAIN.find((m) => m.name === c.name)?.aliases ?? []), ...(c.aptNm ? [c.aptNm] : [])] }))
     } catch {
       /* 기본 목록 사용 */
     }

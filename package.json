@@ -6,9 +6,7 @@
   "scripts": {
     "dev": "vite --host",
     "build": "node scripts/zip-extension.mjs && tsc --noEmit && vite build",
-    "preview": "vite preview --host",
-    "collect": "node collector/collect.js",
-    "test": "node --test test/*.test.js"
+    "preview": "vite preview --host"
   },
   "dependencies": {
     "@fontsource/noto-serif-kr": "^5.3.1",
@@ -27,7 +25,7 @@
     "typescript": "^5.6.3",
     "vite": "^5.4.11"
   },
-  "description": "공인중개사 슈퍼앱 (앱 + 메인 단지 자료 수집기)",
+  "description": "공인중개사 슈퍼앱 (사무소 업무 관리 + 손님용 앱)",
   "engines": {
     "node": ">=20"
   }

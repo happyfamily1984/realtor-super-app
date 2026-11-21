@@ -5,8 +5,9 @@ import { Chips, Confirm, Field, Icon, PageHead, Sheet, useData, type Intent, typ
 import type { Intake } from '../data/intake'
 import { asIntake, blankProperty, fromIntake, PROPERTY_STATUS, propertyTitle, type Property, type PropertyStatus } from '../data/property'
 import { api } from '../lib/api'
+import { similarAds, useNaverDaily, type Similar } from '../lib/naverDaily'
 import { toNaverDraft } from '../lib/naverUpload'
-import { toast, uid, won } from '../lib/util'
+import { shortDate, toast, uid, won } from '../lib/util'
 import { DraftRows, IntakeInbox, NaverUploadSheet, PhotoStrip, type InboxData } from './Inbox'
 import NaverListings from './Listings'
 
@@ -77,7 +78,40 @@ export default function Properties({ intent, clearIntent, go }: PageProps & { go
 }
 
 function MyProperties({ newOne, clearIntent, go }: { newOne: boolean; clearIntent: () => void; go: (t: Tab, i?: Intent) => void }) {
-  const { properties, setProperties } = useData()
+  const { properties, setProperties, settings } = useData()
+  // 매일 받는 네이버 매물에서 내 매물과 비슷한 광고를 찾는다 (같은 집이라고 단정할 수는 없다)
+  const daily = useNaverDaily()
+  const similar = useMemo(() => {
+    const m = new Map<string, Similar[]>()
+    properties.filter((p) => ACTIVE.includes(p.status)).forEach((p) => m.set(p.id, similarAds(p, daily, settings.mainComplexes)))
+    return m
+  }, [properties, daily, settings.mainComplexes])
+  // 전에 본 광고는 기억해 두고, 새로 올라온 것만 알린다
+  const [fresh, setFresh] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!daily) return
+    let seen: Record<string, string[]> = {}
+    try {
+      seen = JSON.parse(localStorage.getItem('seenSimilar') || '{}')
+    } catch {
+      /* 무시 */
+    }
+    const next: Record<string, string[]> = {}
+    const news: Record<string, number> = {}
+    similar.forEach((list, id) => {
+      const keys = list.map((s) => s.key)
+      next[id] = keys
+      // 처음 확인하는 매물은 기준만 잡는다
+      if (seen[id]) news[id] = keys.filter((k) => !seen[id].includes(k)).length
+    })
+    localStorage.setItem('seenSimilar', JSON.stringify(next))
+    setFresh(news)
+    const total = Object.values(news).reduce((a, b) => a + b, 0)
+    if (total) {
+      toast(`내 매물과 비슷한 광고가 새로 ${total}건 올라왔습니다`)
+      if ('Notification' in window && Notification.permission === 'granted') new Notification('비슷한 광고 발견', { body: `내 매물과 비슷한 네이버 매물이 새로 ${total}건 올라왔습니다` })
+    }
+  }, [daily?.generatedAt])
   const [filter, setFilter] = useState<(typeof FILTER)[number]>('진행 중')
   const [q, setQ] = useState('')
   const [form, setForm] = useState<Property | null>(null)
@@ -157,6 +191,11 @@ function MyProperties({ newOne, clearIntent, go }: { newOne: boolean; clearInten
                 <span className={`status p-${p.status}`}>{p.status}</span>
               </div>
               {p.feature && <p className="news-sum">{p.feature}</p>}
+              {!!similar.get(p.id)?.length && (
+                <small className="more-line">
+                  비슷한 네이버 매물 {similar.get(p.id)!.length}건{fresh[p.id] ? ` · 새로 ${fresh[p.id]}건` : ''}
+                </small>
+              )}
             </li>
           ))}
         </ul>
@@ -188,6 +227,36 @@ function MyProperties({ newOne, clearIntent, go }: { newOne: boolean; clearInten
           <Field label="메모 (사무소만 봄)">
             <textarea rows={2} value={open.memo} onChange={(e) => patch(open.id, { memo: e.target.value })} placeholder="열쇠 위치, 집주인 성향, 가격 조정 여지 등" />
           </Field>
+{!!similar.get(open.id)?.length && (
+            <>
+              <h3 className="sub-h">비슷한 네이버 매물 {similar.get(open.id)!.length}건</h3>
+              <p className="hint">
+                같은 단지에서 거래 종류·면적·동·층·가격이 비슷한 광고입니다. 호수가 나오지 않아 같은 집이라고 단정할 수는 없습니다.
+                {open.status === '광고중' && !open.articleNo && ' 우리 광고도 이 안에 들어 있을 수 있으니, 매물번호를 적어 두면 빼고 보여 줍니다.'}
+              </p>
+              <ul className="list sim-list">
+                {similar.get(open.id)!.map((s) => (
+                  <li key={s.key} className="card">
+                    <div className="line">
+                      <div className="grow">
+                        <b>
+                          전용 {s.item.area}㎡ {s.item.dong} {!s.sure && <span className="tag">추정</span>}
+                        </b>
+                        <small>{[s.item.floor && `${s.item.floor}층`, s.item.direction, s.item.confirmedAt && `${shortDate(s.item.confirmedAt)} 확인`].filter(Boolean).join(' · ')}</small>
+                      </div>
+                      <b className="price">{s.item.type === 'monthly' ? `${won(s.item.price)} / ${s.item.rent}만` : won(s.item.price)}</b>
+                    </div>
+                    {s.item.memo && <p className="news-sum">{s.item.memo}</p>}
+                    {s.item.articleNo && (
+                      <a href={`https://m.land.naver.com/article/info/${s.item.articleNo}`} target="_blank" rel="noreferrer">
+                        네이버에서 보기
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <DraftRows draft={toNaverDraft(asIntake(open)).filter((d) => d.section !== '소유자 확인')} />
           <div className="row act-row">
             <button className="btn ghost" onClick={() => setForm(open)}>
