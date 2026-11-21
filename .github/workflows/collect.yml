@@ -6,6 +6,10 @@ name: collect
 on:
   schedule:
     - cron: '23 */3 * * *'
+  # 네이버 매물 파일이 들어오면 바로 다시 계산
+  push:
+    branches: [main]
+    paths: ['inbox/**']
   workflow_dispatch:
     inputs:
       regions:
