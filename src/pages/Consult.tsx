@@ -3,9 +3,9 @@ import { Chips, Confirm, Field, Icon, PageHead, Sheet, useData, type PageProps }
 import { type Consult, type Deal, type Kind } from '../data/sample'
 import { api } from '../lib/api'
 import { recommend } from '../lib/match'
-import { myListings, useMyData } from '../lib/mydata'
+import { toListing } from '../data/property'
 import { deviceId, enablePush, pushState } from '../lib/push'
-import { ChatInbox, IntakeInbox, type InboxData } from './Inbox'
+import { ChatInbox, type InboxData } from './Inbox'
 import { useBackLayer } from '../lib/nav'
 import { renderProposal, saveProposalPptx } from '../lib/proposal'
 import { downloadDataUrl, koDate, shortDate, today, toast, uid, won } from '../lib/util'
@@ -18,11 +18,11 @@ const FILTER = ['전체', ...STATUS] as const
 
 const blank = (): Consult => ({ id: '', name: '', phone: '', deal: '매매', kind: '아파트', budget: 0, areaMin: 0, moveIn: '', memo: '', status: '신규', createdAt: today() })
 
-const SEGS = ['상담 신청', '채팅', '매물 접수'] as const
+const SEGS = ['상담 신청', '채팅'] as const
 
-/** 상담 탭: 직접 받은 상담 신청 + 손님용 앱에서 온 채팅·매물 접수 */
+/** 손님 탭: 상담 신청(손님 장부) + 손님용 앱에서 온 채팅 */
 export default function ConsultPage(props: PageProps) {
-  const [seg, setSeg] = useState<(typeof SEGS)[number]>(props.intent === 'chat' ? '채팅' : props.intent === 'intake' ? '매물 접수' : '상담 신청')
+  const [seg, setSeg] = useState<(typeof SEGS)[number]>(props.intent === 'chat' ? '채팅' : '상담 신청')
   const [data, setData] = useState<InboxData | null>(null)
   const [error, setError] = useState('')
   const [perm, setPerm] = useState(pushState())
@@ -31,13 +31,12 @@ export default function ConsultPage(props: PageProps) {
       .then((r) => (setData(r), setError('')))
       .catch((e) => setError(e.message))
   useEffect(() => {
-    if (props.intent === 'chat' || props.intent === 'intake') props.clearIntent()
+    if (props.intent === 'chat') props.clearIntent()
     reload()
     const t = setInterval(() => !document.hidden && reload(), 15000)
     return () => clearInterval(t)
   }, [])
   const unread = data?.customers.reduce((s, c) => s + (c.unreadOffice || 0), 0) ?? 0
-  const fresh = data?.intakes.filter((i) => i.status === '접수').length ?? 0
 
   return (
     <>
@@ -46,7 +45,6 @@ export default function ConsultPage(props: PageProps) {
           <button key={s} className={s === seg ? 'on' : ''} onClick={() => setSeg(s)}>
             {s}
             {s === '채팅' && unread > 0 && <span className="unread">{unread}</span>}
-            {s === '매물 접수' && fresh > 0 && <span className="unread">{fresh}</span>}
           </button>
         ))}
       </div>
@@ -74,7 +72,6 @@ export default function ConsultPage(props: PageProps) {
       )}
       {seg === '상담 신청' && <ConsultRequests {...props} />}
       {seg === '채팅' && <ChatInbox data={data} error={error} reload={reload} />}
-      {seg === '매물 접수' && <IntakeInbox data={data} error={error} reload={reload} />}
     </>
   )
 }
@@ -111,8 +108,8 @@ function ConsultRequests({ intent, clearIntent }: PageProps) {
   return (
     <>
       <PageHead
-        title="상담 접수"
-        sub="손님 상담 신청과 진행 관리"
+        title="손님 상담"
+        sub="상담 신청과 진행 관리"
         right={
           <button className="btn small" onClick={() => setForm(blank())}>
             <Icon name="plus" size={18} /> 접수
@@ -239,9 +236,12 @@ function ConsultRequests({ intent, clearIntent }: PageProps) {
 }
 
 function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void }) {
-  const { settings, listings } = useData()
-  const { data: my } = useMyData() // 메인 단지 네이버 매물
-  const matches = useMemo(() => recommend(consult, [...myListings(my), ...listings.filter((l) => l.src && !l.gone)].length ? [...myListings(my), ...listings.filter((l) => l.src && !l.gone)] : listings), [consult, listings, my])
+  const { settings, listings, properties } = useData()
+  const [withNaver, setWithNaver] = useState(false)
+  // 추천 후보: 내 매물 중 진행 중인 것. 원하면 네이버에서 수집한 시장 매물도 함께 본다.
+  const mine = useMemo(() => properties.filter((p) => p.status === '접수' || p.status === '광고중').map(toListing), [properties])
+  const market = useMemo(() => listings.filter((l) => l.src && !l.gone), [listings])
+  const matches = useMemo(() => recommend(consult, withNaver ? [...mine, ...market] : mine), [consult, mine, market, withNaver])
   const [picked, setPicked] = useState<Set<string>>(() => new Set(matches.slice(0, 3).map((m) => m.listing.id)))
   const [busy, setBusy] = useState(false)
   const [pages, setPages] = useState<string[] | null>(null)
@@ -278,8 +278,14 @@ function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void
       <p className="hint">
         {consult.deal} · {consult.kind} · {won(consult.budget)} 이내 · {consult.areaMin}㎡ 이상 조건으로 추천했습니다.
       </p>
-      {matches.length === 0 && <p className="empty">조건에 맞는 매물이 없습니다.</p>}
+      {matches.length === 0 && <p className="empty">{mine.length ? '조건에 맞는 내 매물이 없습니다.' : '진행 중인 내 매물이 없습니다. 매물 탭에서 먼저 등록해 주세요.'}</p>}
       <ul className="list">
+      {market.length > 0 && (
+        <label className="check-row">
+          <input type="checkbox" checked={withNaver} onChange={(e) => setWithNaver(e.target.checked)} />
+          <span>네이버에서 수집한 매물 {market.length}건도 함께 보기</span>
+        </label>
+      )}
         {matches.length > 40 && <p className="hint">조건에 맞는 {matches.length}건 중 적합도가 높은 40건입니다.</p>}
         {matches.slice(0, 40).map((m) => {
           const on = picked.has(m.listing.id)
@@ -296,6 +302,7 @@ function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void
                 </small>
                 <div className="reasons">
                   <span className="tag score">적합도 {m.score}</span>
+                  {m.listing.mine && <span className="tag deal-전세">내 매물</span>}
                   {m.reasons.map((r) => (
                     <span key={r} className="tag">
                       {r}

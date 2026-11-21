@@ -152,29 +152,15 @@ function ChatRoom({ customer, onClose }: { customer: Customer; onClose: () => vo
   )
 }
 
-// ── 매물 접수 ────────────────────────────────────
-export function IntakeInbox({ data, error, reload }: { data: InboxData | null; error: string; reload: () => void }) {
+// ── 손님이 접수한 매물 ────────────────────────────
+export function IntakeInbox({ data, error, reload, onAdopt, adopted }: { data: InboxData | null; error: string; reload: () => void; onAdopt: (i: Intake) => void; adopted: Set<string> }) {
   const [openId, setOpenId] = useState<string | null>(null)
-  const [upload, setUpload] = useState(false)
   const open = data?.intakes.find((i) => i.id === openId)
-  const draft = open ? toNaverDraft(open) : []
-  const lack = missing(draft)
 
-  const setStatus = async (status: Intake['status']) => {
-    if (!open) return
+  const setStatus = async (id: string, status: Intake['status']) => {
     try {
-      await api('office', { a: 'intakeStatus', id: open.id, status })
+      await api('office', { a: 'intakeStatus', id, status })
       reload()
-    } catch (e) {
-      toast((e as Error).message)
-    }
-  }
-  const sendToVendor = async () => {
-    if (!open) return
-    if (!VENDORS.length) return toast('매물 등록 업체가 아직 연결되지 않았습니다. 지금은 복사해서 입력해 주세요.')
-    try {
-      toast(await VENDORS[0].submit(draft, open))
-      setStatus('등록완료')
     } catch (e) {
       toast((e as Error).message)
     }
@@ -182,7 +168,7 @@ export function IntakeInbox({ data, error, reload }: { data: InboxData | null; e
 
   return (
     <>
-      <PageHead title="매물 접수" sub="손님이 내놓은 매물" />
+      <PageHead title="손님 접수 매물" sub="손님용 앱에서 내놓은 매물" />
       <section className="block">
         {error && <p className="warn-note">{error}</p>}
         {data && data.intakes.length === 0 && <p className="empty">아직 접수된 매물이 없습니다.</p>}
@@ -200,7 +186,7 @@ export function IntakeInbox({ data, error, reload }: { data: InboxData | null; e
                 <small className="grow">
                   {i.ownerName} · {stamp(i.createdAt)} 접수
                 </small>
-                <span className={`status i-${i.status}`}>{i.status}</span>
+                <span className={`status i-${i.status}`}>{adopted.has(i.id) ? '내 매물 등록됨' : i.status}</span>
               </div>
             </li>
           ))}
@@ -209,56 +195,84 @@ export function IntakeInbox({ data, error, reload }: { data: InboxData | null; e
 
       {open && (
         <Sheet
-          title={open.complex || open.address || '매물 접수'}
+          title={open.complex || open.address || '접수 매물'}
           onClose={() => setOpenId(null)}
           footer={
-            <button className="btn block-btn" onClick={() => setUpload(true)}>
-              네이버 매물 업로드
+            <button
+              className="btn block-btn"
+              disabled={adopted.has(open.id)}
+              onClick={() => {
+                onAdopt(open)
+                setStatus(open.id, '등록완료')
+                setOpenId(null)
+              }}
+            >
+              {adopted.has(open.id) ? '이미 내 매물에 있습니다' : '내 매물로 등록'}
             </button>
           }
         >
-          <Chips options={INTAKE_STATUS} value={open.status} onChange={setStatus} />
+          <Chips options={INTAKE_STATUS} value={open.status} onChange={(s) => setStatus(open.id, s)} />
           <p className="hint">
             의뢰인 {open.ownerName} ({open.relation}) <a href={`tel:${open.ownerPhone}`}>{open.ownerPhone}</a>
           </p>
-          {open.photos.length > 0 && (
-            <div className="photos">
-              {open.photos.map((p) => (
-                <a key={p} className="photo" href={p} target="_blank" rel="noreferrer">
-                  <img src={p} alt="매물 사진" />
-                </a>
-              ))}
-            </div>
-          )}
-          <DraftRows draft={draft} />
-        </Sheet>
-      )}
-
-      {open && upload && (
-        <Sheet
-          title="네이버 매물 업로드 (초안)"
-          onClose={() => setUpload(false)}
-          footer={
-            <div className="row">
-              <button className="btn ghost" onClick={() => copy(draftText(draft), '전체 내용을 복사했습니다')}>
-                전체 복사
-              </button>
-              <button className="btn" onClick={sendToVendor}>
-                {VENDORS.length ? `${VENDORS[0].name}로 전송` : '업체 연결 예정'}
-              </button>
-            </div>
-          }
-        >
-          <p className="warn-note">매물 등록 업체가 정해지면 이 값들이 등록 화면에 자동으로 들어갑니다. 지금은 항목을 눌러 복사해 붙여 넣으세요.</p>
-          {lack.length > 0 && <p className="warn-note">등록에 꼭 필요한데 비어 있는 항목: {lack.join(', ')}</p>}
-          <DraftRows draft={draft} tapToCopy showEmpty />
+          <PhotoStrip photos={open.photos} />
+          <DraftRows draft={toNaverDraft(open)} />
         </Sheet>
       )}
     </>
   )
 }
 
-function DraftRows({ draft, tapToCopy, showEmpty }: { draft: ReturnType<typeof toNaverDraft>; tapToCopy?: boolean; showEmpty?: boolean }) {
+export function PhotoStrip({ photos }: { photos: string[] }) {
+  if (!photos.length) return null
+  return (
+    <div className="photos">
+      {photos.map((p) => (
+        <a key={p} className="photo" href={p} target="_blank" rel="noreferrer">
+          <img src={p} alt="매물 사진" />
+        </a>
+      ))}
+    </div>
+  )
+}
+
+/** 네이버 매물 등록 화면 순서대로 정리한 값. 업체가 연결되기 전에는 눌러서 복사한다. */
+export function NaverUploadSheet({ intake, onClose, onSent }: { intake: Intake; onClose: () => void; onSent?: (msg: string) => void }) {
+  const draft = toNaverDraft(intake)
+  const lack = missing(draft)
+  const send = async () => {
+    if (!VENDORS.length) return toast('매물 등록 업체가 아직 연결되지 않았습니다. 지금은 복사해서 입력해 주세요.')
+    try {
+      const msg = await VENDORS[0].submit(draft, intake)
+      toast(msg)
+      onSent?.(msg)
+    } catch (e) {
+      toast((e as Error).message)
+    }
+  }
+  return (
+    <Sheet
+      title="네이버 매물 업로드 (초안)"
+      onClose={onClose}
+      footer={
+        <div className="row">
+          <button className="btn ghost" onClick={() => copy(draftText(draft), '전체 내용을 복사했습니다')}>
+            전체 복사
+          </button>
+          <button className="btn" onClick={send}>
+            {VENDORS.length ? `${VENDORS[0].name}로 전송` : '업체 연결 예정'}
+          </button>
+        </div>
+      }
+    >
+      <p className="warn-note">매물 등록 업체가 정해지면 이 값들이 등록 화면에 자동으로 들어갑니다. 지금은 항목을 눌러 복사해 붙여 넣으세요.</p>
+      {lack.length > 0 && <p className="warn-note">등록에 꼭 필요한데 비어 있는 항목: {lack.join(', ')}</p>}
+      <DraftRows draft={draft} tapToCopy showEmpty />
+    </Sheet>
+  )
+}
+
+export function DraftRows({ draft, tapToCopy, showEmpty }: { draft: ReturnType<typeof toNaverDraft>; tapToCopy?: boolean; showEmpty?: boolean }) {
   let sec = ''
   return (
     <div>

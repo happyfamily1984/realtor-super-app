@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from 'react'
+import type { Property } from '../data/property'
 import type { Consult, Contract, Listing, Settings } from '../data/sample'
 import { useBackLayer } from '../lib/nav'
 
@@ -11,14 +12,16 @@ export interface AppData {
   setConsults: Set<Consult[]>
   contracts: Contract[]
   setContracts: Set<Contract[]>
-  listings: Listing[]
+  listings: Listing[] // 네이버에서 수집한 시장 매물
   setListings: Set<Listing[]>
+  properties: Property[] // 내 매물 (매물장)
+  setProperties: Set<Property[]>
 }
 export const DataCtx = createContext<AppData>(null as unknown as AppData)
 export const useData = () => useContext(DataCtx)
 
-export type Tab = 'home' | 'briefing' | 'listings' | 'consult' | 'contracts'
-export type Intent = 'cards' | 'newConsult' | 'newContract' | 'chat' | 'intake' | null
+export type Tab = 'home' | 'consult' | 'listings' | 'contracts' | 'more'
+export type Intent = 'newConsult' | 'newContract' | 'newProperty' | 'chat' | 'intake' | null
 export interface PageProps {
   intent: Intent
   clearIntent: () => void
@@ -28,6 +31,7 @@ export interface PageProps {
 const PATHS: Record<string, string> = {
   home: 'M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z',
   briefing: 'M5 4h11l3 3v13H5zM8 9h8M8 13h8M8 17h5',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
   listings: 'M4 20V9l5-4 5 4v11M14 20v-8h6v8M2 20h20M8 12v2M8 16v1',
   consult: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5',
   contracts: 'M7 3h8l4 4v14H7zM14 3v5h5M10 13l2 2 4-4',
