@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Chips, Confirm, Icon, PageHead, SampleBadge, Sheet, useData } from '../components/ui'
 import { matchMain } from '../data/main'
 import type { Deal, Kind, Listing, Trade } from '../data/sample'
+import { ComplexSheet } from '../components/MainData'
 import { api } from '../lib/api'
+import { useMyData } from '../lib/mydata'
 import { articleUrl, BOOKMARKLET, findDupes, mergeListings, parseCollectorFile, parseRegionNames, type CollectorFile } from '../lib/naverParse'
 import { daysUntil, shortDate, shrinkImage, today, toast, uid, usePersist, won } from '../lib/util'
 
@@ -53,6 +55,8 @@ export default function Listings() {
   const [scopePick, setScope] = useState<'메인 단지' | '전체 단지' | null>(null)
   const scope = scopePick ?? (hasMain ? '메인 단지' : '전체 단지')
   const [showDupes, setShowDupes] = useState(false)
+  const { data: my } = useMyData()
+  const [openComplex, setOpenComplex] = useState<string | null>(null)
   const dupes = useMemo(() => findDupes(listings, settings.myRealtor || settings.office, settings.myArticles), [listings, settings.myRealtor, settings.office, settings.myArticles])
   // 새로 발견된 중복 광고는 한 번만 알린다
   useEffect(() => {
@@ -134,6 +138,29 @@ export default function Listings() {
           </button>
         </section>
       )}
+      {my && my.complexes.some((c) => c.listings) && (
+        <section className="block">
+          <h2>메인 단지 네이버 매물</h2>
+          <ul className="list">
+            {my.complexes
+              .filter((c) => c.listings)
+              .map((c) => (
+                <li key={c.id} className="card line" onClick={() => setOpenComplex(c.id)}>
+                  <div className="grow">
+                    <b>{c.name}</b>
+                    <small>
+                      {shortDate(c.listings!.capturedAt)} 기준{c.listings!.stale ? ' (7일 넘음)' : ''}
+                      {c.listings!.suspects ? ` · 중복 의심 ${c.listings!.suspects}건` : ''}
+                    </small>
+                  </div>
+                  <b className="price">{c.listings!.total}건</b>
+                </li>
+              ))}
+          </ul>
+          <p className="hint">매일 오전 10시에 받은 매물입니다. 단지를 누르면 호가와 실거래 비교, 매물 목록이 나옵니다. 손님 맞춤 추천에도 이 매물을 씁니다.</p>
+        </section>
+      )}
+      {my && openComplex && my.complexes.find((c) => c.id === openComplex) && <ComplexSheet complex={my.complexes.find((c) => c.id === openComplex)!} data={my} onClose={() => setOpenComplex(null)} />}
       {lastCollect && (
         <section className="block">
           {staleDays >= STALE_DAYS || tradedGroups.length > 0 ? (

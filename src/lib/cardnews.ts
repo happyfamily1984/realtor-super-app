@@ -200,6 +200,42 @@ function newsCard(inp: CardInput, no: number, total: number) {
   return cv
 }
 
+/** 미리 정리된 항목 카드 (제목 + "항목: 내용" 줄)를 같은 디자인으로 그린다 */
+export async function renderPointCards(cards: { title: string; points: string[] }[], who: { region: string; office: string }): Promise<string[]> {
+  await loadFonts([who.region, who.office, ...cards.flatMap((k) => [k.title, ...k.points])].join(''))
+  const inp: CardInput = { region: who.region, office: who.office, trades: [], news: [], sample: false }
+  return cards.map((card, i) => {
+    const title = card.title.replace(/㎡/g, 'm²')
+    const { cv, c } = canvas(W, H)
+    // 머리말·꼬리말은 다른 카드와 같게
+    text(c, `${inp.region} 단지 리포트`, M, 104, { size: 26, weight: 600, color: C.sub })
+    text(c, dotDate(), R, 104, { size: 26, weight: 600, color: C.sub, align: 'right' })
+    rule(c, M, R, 132, C.ink, 4)
+    const ty = para(c, title, M, 232, W - M * 2, { size: 64, weight: 900, font: SERIF, color: C.ink, lh: 1.3, maxLines: 2 })
+    rule(c, M, R, H - 118, C.line, 2)
+    rect(c, M, H - 86, 16, 16, C.seal)
+    text(c, inp.office, M + 30, H - 68, { size: 26, weight: 700, color: C.ink })
+    text(c, `${i + 1}/${cards.length}`, R, H - 68, { size: 24, weight: 700, color: C.ink, align: 'right' })
+
+    const top = ty + 70
+    const rows = card.points.slice(0, 8)
+    const rh = Math.min(150, Math.floor((H - 150 - top) / Math.max(rows.length, 1)))
+    rule(c, M, R, top, C.ink, 2)
+    rows.forEach((p, n) => {
+      const y = top + rh * n
+      const cut = p.indexOf(': ')
+      const label = cut > 0 ? p.slice(0, cut) : ''
+      const value = cut > 0 ? p.slice(cut + 2) : p
+      const up = /▲|\+\d/.test(value)
+      const down = /▼/.test(value)
+      if (label) text(c, clip(c, label, 330, { size: 34, weight: 600 }), M, y + rh / 2 + 12, { size: 34, weight: 600, color: C.sub })
+      fitText(c, value, R, y + rh / 2 + 14, W - M * 2 - (label ? 350 : 0), { size: 42, weight: 800, color: up ? C.seal : down ? C.down : C.ink, align: 'right' }, 26)
+      if (n < rows.length - 1) rule(c, M, R, y + rh, C.line, 2)
+    })
+    return cv.toDataURL('image/png')
+  })
+}
+
 /** 카드뉴스를 PNG dataURL 로 (AI 분석이 있으면 5장, 없으면 4장) */
 export async function renderCards(inp: CardInput): Promise<string[]> {
   await loadFonts(

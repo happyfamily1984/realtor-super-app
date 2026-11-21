@@ -5,6 +5,7 @@ import { Chips, Confirm, Field, Icon, Sheet } from '../components/ui'
 import { blankIntake, type Intake } from '../data/intake'
 import { DEFAULT_MAIN, displayName, matchMain, type MainComplex } from '../data/main'
 import { api } from '../lib/api'
+import { loadMainConfig } from '../lib/mydata'
 import { exitApp, initNav, stayInApp, useBackLayer } from '../lib/nav'
 import { deviceId, enablePush, pushState } from '../lib/push'
 import { toast, usePersist, won } from '../lib/util'
@@ -228,9 +229,9 @@ function Trades({ cid, perm, onPush }: { cid: string; perm: string; onPush: () =
   const [adding, setAdding] = useState(false)
   const [, redraw] = useState(0)
   useEffect(() => {
-    api<{ main?: MainComplex[] }>('c?a=profile')
-      .then((r) => {
-        if (r.main?.length) mainList = fixOld(r.main)
+    loadMainConfig()
+      .then((list) => {
+        if (list.length) mainList = list
         redraw((n) => n + 1)
       })
       .catch(() => {})
@@ -337,7 +338,8 @@ function AddComplex({ picked, onToggle, onClose }: { picked: Watch[]; onToggle: 
     api<{ complexes: { complex: string; dong: string; kind?: string; n: number }[]; main?: MainComplex[] }>(`c?a=complexes&lawd=${lawd}`)
       .then((r) => {
         setList(r.complexes)
-        if (r.main?.length) setMain(fixOld(r.main))
+        if (mainList !== DEFAULT_MAIN) setMain(mainList)
+        else if (r.main?.length) setMain(fixOld(r.main))
       })
       .catch((e) => setErr(e.message))
   }, [lawd])

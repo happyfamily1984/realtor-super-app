@@ -1,6 +1,6 @@
 // 하루 한 번 실행 (vercel.json 의 crons): 새로 신고된 실거래를 찾아, 그 아파트를 지정한 손님에게 알림을 보낸다.
 import { DEFAULT_MAIN, displayName, type MainComplex } from '../src/data/main.js'
-import { getJ, hallJ, redis, setJ, unshiftJ } from './_db.js'
+import { hallJ, redis, setJ, unshiftJ } from './_db.js'
 import { REGIONS } from './c.js'
 import { toCustomer } from './_push.js'
 import { fetchTrades } from './trades.js'
@@ -16,8 +16,15 @@ export default async function cron(req: { headers: Record<string, string | strin
   if (secret && req.headers.authorization !== `Bearer ${secret}`) return res.status(401).json({ error: '권한이 없습니다' })
   try {
     const watch = await hallJ<{ lawd: string; complex: string; dong: string }[]>('watch')
-    const saved = (await getJ<{ main?: MainComplex[] }>('profile'))?.main
-    const main = saved?.length ? saved.map((m) => (m.name === '공작부영' ? DEFAULT_MAIN.find((d) => d.name === '공작부영아파트')! : m)) : DEFAULT_MAIN
+    // 표시 이름은 수집기와 함께 쓰는 단지 설정 파일에서 받는다 (못 받으면 앱에 든 기본 목록)
+    let main: MainComplex[] = DEFAULT_MAIN
+    try {
+      const r = await fetch('https://raw.githubusercontent.com/happyfamily1984/realtor-super-app/main/config/main-complexes.json')
+      const j = (await r.json()) as { complexes: { name: string; kind: string; aliases?: string[] }[] }
+      if (j.complexes?.length) main = j.complexes.map((c) => ({ name: c.name, kind: c.kind === 'offi' ? '오피스텔' : '아파트', aliases: c.aliases ?? [] }))
+    } catch {
+      /* 기본 목록 사용 */
+    }
     const report: Record<string, unknown> = {}
     for (const lawd of Object.keys(REGIONS)) {
       const { rows } = await fetchTrades(lawd, 2)

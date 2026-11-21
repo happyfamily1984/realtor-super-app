@@ -3,6 +3,7 @@
 // - 오픈카톡·스레드·블로그: 외부에서 글을 대신 올려 주는 공식 방법이 없어, 글 복사·이미지 저장·작성 화면 열기까지 도와준다
 import { useRef, useState } from 'react'
 import { api } from '../lib/api'
+import { renderPointCards } from '../lib/cardnews'
 import { downloadDataUrl, shrinkImage, shrinkSrc, today, toast } from '../lib/util'
 import { Field, Icon, Sheet, useData } from './ui'
 
@@ -11,6 +12,8 @@ export interface ExportContent {
   body: string
   images: string[] // dataURL
   kind: string
+  texts?: { talk?: string; thread?: string; blog?: string } // 채널별로 미리 써 둔 글 (없으면 제목+내용)
+  cards?: { title: string; points: string[] }[] // 카드뉴스로 그릴 내용
 }
 
 const copy = async (text: string) => {
@@ -29,6 +32,17 @@ export default function ExportSheet({ initial, onClose }: { initial: ExportConte
   const [busy, setBusy] = useState('')
   const input = useRef<HTMLInputElement>(null)
   const text = `${c.title}\n\n${c.body}`.trim()
+  const talk = c.texts?.talk ?? text
+  const makeCards = async () => {
+    if (!c.cards?.length) return
+    setBusy('cards')
+    try {
+      const made = await renderPointCards(c.cards, { region: settings.region, office: settings.office })
+      setC((p) => ({ ...p, images: [...p.images, ...made].slice(0, 10), cards: undefined }))
+    } finally {
+      setBusy('')
+    }
+  }
   const mark = (k: string, v: string) => setDone((p) => ({ ...p, [k]: v }))
   const saveImages = () => c.images.forEach((d, i) => setTimeout(() => downloadDataUrl(d, `${c.title || '소식'}_${today()}_${i + 1}.png`), i * 250))
 
@@ -49,23 +63,23 @@ export default function ExportSheet({ initial, onClose }: { initial: ExportConte
     try {
       const files = await Promise.all(c.images.map(async (d, i) => new File([await (await fetch(d)).blob()], `info_${i + 1}.png`, { type: 'image/png' })))
       if (navigator.canShare?.({ files }) || (!files.length && navigator.share)) {
-        await navigator.share(files.length ? { files, text } : { text })
+        await navigator.share(files.length ? { files, text: talk } : { text: talk })
         return mark('kakao', '공유 창을 열었습니다')
       }
     } catch {
       return // 공유 취소
     }
-    await copy(text)
+    await copy(talk)
     saveImages()
     mark('kakao', '글을 복사하고 이미지를 저장했습니다')
   }
   const toThreads = async () => {
     saveImages()
-    window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(text.slice(0, 480))}`, '_blank', 'noopener')
+    window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent((c.texts?.thread ?? text).slice(0, 480))}`, '_blank', 'noopener')
     mark('threads', c.images.length ? '작성 창을 열었습니다 · 저장된 이미지를 첨부하세요' : '작성 창을 열었습니다')
   }
   const toBlog = async () => {
-    const ok = await copy(text)
+    const ok = await copy(c.texts?.blog ?? text)
     saveImages()
     window.open('https://blog.naver.com/GoBlogWrite.naver', '_blank', 'noopener')
     mark('blog', ok ? '글을 복사했습니다 · 글쓰기 화면에 붙여 넣으세요' : '글쓰기 화면을 열었습니다')
@@ -113,6 +127,12 @@ export default function ExportSheet({ initial, onClose }: { initial: ExportConte
           }}
         />
       </Field>
+      {!!c.cards?.length && (
+        <button type="button" className="btn ghost block-btn" disabled={busy === 'cards'} onClick={makeCards}>
+          {busy === 'cards' ? '만드는 중…' : `카드 이미지 ${c.cards.length}장 만들어 붙이기`}
+        </button>
+      )}
+      {c.texts && <p className="hint">오픈카톡·스레드·블로그에는 각 채널에 맞게 미리 써 둔 글이 들어갑니다.</p>}
       <h3 className="sub-h">보낼 곳</h3>
       {channels.map(([k, name, desc, run]) => (
         <button key={k} type="button" className={done[k] ? 'export-ch done' : 'export-ch'} disabled={busy === k} onClick={run}>

@@ -3,6 +3,7 @@ import { Chips, Confirm, Field, Icon, PageHead, Sheet, useData, type PageProps }
 import { type Consult, type Deal, type Kind } from '../data/sample'
 import { api } from '../lib/api'
 import { recommend } from '../lib/match'
+import { myListings, useMyData } from '../lib/mydata'
 import { deviceId, enablePush, pushState } from '../lib/push'
 import { ChatInbox, IntakeInbox, type InboxData } from './Inbox'
 import { useBackLayer } from '../lib/nav'
@@ -239,7 +240,8 @@ function ConsultRequests({ intent, clearIntent }: PageProps) {
 
 function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void }) {
   const { settings, listings } = useData()
-  const matches = useMemo(() => recommend(consult, listings.filter((l) => !l.gone)), [consult, listings])
+  const { data: my } = useMyData() // 메인 단지 네이버 매물
+  const matches = useMemo(() => recommend(consult, [...myListings(my), ...listings.filter((l) => l.src && !l.gone)].length ? [...myListings(my), ...listings.filter((l) => l.src && !l.gone)] : listings), [consult, listings, my])
   const [picked, setPicked] = useState<Set<string>>(() => new Set(matches.slice(0, 3).map((m) => m.listing.id)))
   const [busy, setBusy] = useState(false)
   const [pages, setPages] = useState<string[] | null>(null)
@@ -278,7 +280,8 @@ function Recommend({ consult, onClose }: { consult: Consult; onClose: () => void
       </p>
       {matches.length === 0 && <p className="empty">조건에 맞는 매물이 없습니다.</p>}
       <ul className="list">
-        {matches.map((m) => {
+        {matches.length > 40 && <p className="hint">조건에 맞는 {matches.length}건 중 적합도가 높은 40건입니다.</p>}
+        {matches.slice(0, 40).map((m) => {
           const on = picked.has(m.listing.id)
           return (
             <li key={m.listing.id} className={on ? 'card pick on' : 'card pick'} onClick={() => toggle(m.listing.id)} role="checkbox" aria-checked={on}>

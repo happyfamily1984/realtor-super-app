@@ -277,3 +277,9 @@ select { width: 100%; border: 1px solid #cfd4cd; border-radius: 11px; padding: 1
 .add-main { align-items: center; margin-bottom: 8px; }
 .add-main .chips { flex: 1; }
 .add-main .btn { flex: none; }
+.more-line { display: block; margin-top: 4px; color: var(--brand); font-weight: 600; }
+.rtable.t5 .rrow { grid-template-columns: .8fr 1.6fr 1.1fr 1.1fr .9fr; }
+.rtable.t4 .rrow { grid-template-columns: 1.2fr 1.6fr 1.1fr .8fr; }
+.notes { list-style: disc; padding-left: 18px; font-size: 13.5px; color: #46514c; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.warn-note p { margin-top: 4px; }
+.sheet-body > .warn-note, .sheet-body > .ai-box { margin-bottom: 12px; }

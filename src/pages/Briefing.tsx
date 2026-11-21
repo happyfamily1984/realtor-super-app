@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import ExportSheet, { type ExportContent } from '../components/ExportSheet'
+import { AuctionRow, AuctionSheet, ComplexSheet } from '../components/MainData'
+import { useMyData, type MyAuction } from '../lib/mydata'
 import { Chips, PageHead, SampleBadge, Sheet, useData, type PageProps } from '../components/ui'
 import { matchMain } from '../data/main'
 import { NEWS, TRADES, type News, type Trade } from '../data/sample'
@@ -33,6 +35,28 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
   const [busy, setBusy] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
   const [exporting, setExporting] = useState<ExportContent | null>(null)
+  // 수집기가 모아 둔 메인 단지 자료 (실거래 분석·네이버 매물·경매)
+  const { data: my, error: myErr } = useMyData()
+  const [openComplex, setOpenComplex] = useState<string | null>(null)
+  const [openAuction, setOpenAuction] = useState<MyAuction | null>(null)
+  const myOf = (name: string, id?: string) => my?.complexes.find((c) => c.id === id || c.name === name)
+  const auctions = (my?.auctions ?? []).filter((a) => !a.gone)
+  // 새 경매 물건이나 최저가·기일이 바뀐 물건은 한 번만 알린다
+  useEffect(() => {
+    if (!my) return
+    const keys = auctions.map((a) => `${a.id}|${a.minPrice}|${a.saleDate}`)
+    let seen: string[] | null = null
+    try {
+      seen = JSON.parse(localStorage.getItem('seenAuctions') || 'null')
+    } catch {
+      /* 무시 */
+    }
+    localStorage.setItem('seenAuctions', JSON.stringify(keys))
+    const fresh = seen ? auctions.filter((_, i) => !seen!.includes(keys[i])) : []
+    if (!fresh.length) return
+    toast(`메인 단지 경매 소식 ${fresh.length}건`)
+    if ('Notification' in window && Notification.permission === 'granted') new Notification('메인 단지 경매', { body: `${fresh[0].complexName} ${fresh[0].unit}${fresh.length > 1 ? ` 외 ${fresh.length - 1}건` : ''}` })
+  }, [my?.generatedAt])
   const loading = !live
 
   useEffect(() => {
@@ -192,27 +216,60 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
         </button>
       </section>
 
-      {liveTrades && main.length > 0 && (
+      {(liveTrades || my) && main.length > 0 && (
         <section className="block">
           <h2>메인 단지 현황</h2>
           <ul className="list">
             {mainRows.map(({ m, n, last, lease, leaseN }) => (
-              <li key={m.name} className="card">
+              <li key={m.name} className="card" onClick={() => myOf(m.name, m.id) && setOpenComplex(myOf(m.name, m.id)!.id)}>
                 <div className="line">
                   <div className="grow">
                     <span className="tag">{m.kind}</span>
                     <b className="title">{m.name}</b>
                   </div>
-                  <div className="right">
-                    <b className="price">{last ? won(last.price) : '-'}</b>
-                    <small>{last ? `${last.area}㎡ ${last.floor}층, ${shortDate(last.date)}` : '최근 6개월 매매 없음'}</small>
-                  </div>
+                  {(() => {
+                    // 수집기 자료(최근 1년 분석)가 있으면 그것을, 없으면 방금 조회한 실거래를 쓴다
+                    const t = myOf(m.name, m.id)?.recentTrades.find((x) => !x.canceled)
+                    const v = t ? { price: t.price, area: Math.round(t.area), floor: t.floor, date: t.date } : last
+                    return (
+                      <div className="right">
+                        <b className="price">{v ? won(v.price) : '-'}</b>
+                        <small>{v ? `${v.area}㎡ ${v.floor}층, ${shortDate(v.date)}` : '최근 매매 없음'}</small>
+                      </div>
+                    )
+                  })()}
                 </div>
-                <small>
-                  매매 {n}건 (6개월){leaseN ? `, 전월세 ${leaseN}건 (3개월)` : ''}
-                  {lease ? `, 최근 ${lease.rent ? `월세 ${won(lease.price)}/${lease.rent}만` : `전세 ${won(lease.price)}`} ${lease.area}㎡` : ''}
-                </small>
+                {myOf(m.name, m.id)?.hasData ? (
+                  <small>
+                    최근 1년 매매 {myOf(m.name, m.id)!.counts.trade12}건, 전세 {myOf(m.name, m.id)!.counts.jeonse12}건, 월세 {myOf(m.name, m.id)!.counts.monthly12}건
+                  </small>
+                ) : (
+                  <small>
+                    매매 {n}건 (6개월){leaseN ? `, 전월세 ${leaseN}건 (3개월)` : ''}
+                    {lease ? `, 최근 ${lease.rent ? `월세 ${won(lease.price)}/${lease.rent}만` : `전세 ${won(lease.price)}`} ${lease.area}㎡` : ''}
+                  </small>
+                )}
+                {myOf(m.name, m.id) && (
+                  <small className="more-line">
+                    네이버 매물 {myOf(m.name, m.id)!.listings?.total ?? 0}건{myOf(m.name, m.id)!.auctionCount ? ` · 경매 ${myOf(m.name, m.id)!.auctionCount}건` : ''} · 눌러서 분석 보기
+                  </small>
+                )}
               </li>
+            ))}
+          </ul>
+          {myErr && !my && <p className="warn-note">{myErr}</p>}
+          {my?.notes.map((n) => (
+            <p key={n} className="warn-note">{n}</p>
+          ))}
+        </section>
+      )}
+
+      {auctions.length > 0 && (
+        <section className="block">
+          <h2>메인 단지 경매 ({auctions.length}건)</h2>
+          <ul className="list">
+            {auctions.map((a) => (
+              <AuctionRow key={a.id} a={a} onOpen={() => setOpenAuction(a)} />
             ))}
           </ul>
         </section>
@@ -285,6 +342,8 @@ export default function Briefing({ intent, clearIntent }: PageProps) {
         </ul>
       </section>
 
+      {my && openComplex && my.complexes.find((c) => c.id === openComplex) && <ComplexSheet complex={my.complexes.find((c) => c.id === openComplex)!} data={my} onClose={() => setOpenComplex(null)} />}
+      {openAuction && <AuctionSheet auction={openAuction} onClose={() => setOpenAuction(null)} />}
       {exporting && !cards && <ExportSheet initial={exporting} onClose={() => setExporting(null)} />}
       {cards && (
         <Sheet

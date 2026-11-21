@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Confirm, DataCtx, Icon, type Intent, type Tab } from './components/ui'
 import { DEFAULT_SETTINGS, LISTINGS, SAMPLE_CONSULTS, SAMPLE_CONTRACTS, type Consult, type Contract, type Listing, type Settings } from './data/sample'
 import { exitApp, initNav, stayInApp, useBackLayer } from './lib/nav'
-import { DEFAULT_MAIN } from './data/main'
+import { DEFAULT_MAIN, type MainComplex } from './data/main'
+import { loadMainConfig } from './lib/mydata'
 import { registerSw } from './lib/push'
 import { mergeListings, parseCollectorFile, parseRegionNames, type CollectorFile } from './lib/naverParse'
 import { toast, usePersist } from './lib/util'
@@ -22,11 +23,18 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function App() {
   const [saved, setSettings] = usePersist<Settings>('settings', DEFAULT_SETTINGS)
+  const [remoteMain, setRemoteMain] = usePersist<MainComplex[] | null>('remoteMain', null)
   const settings = useMemo(() => {
     const s = { ...DEFAULT_SETTINGS, ...saved } // 예전 저장값에 새 항목 보충
     // 표시 이름 변경 반영: 공작부영 → 공작부영아파트
-    return { ...s, mainComplexes: s.mainComplexes.map((m) => (m.name === '공작부영' ? DEFAULT_MAIN.find((d) => d.name === '공작부영아파트')! : m)) }
-  }, [saved])
+    // 메인 단지는 수집기 설정 파일(config/main-complexes.json)의 목록을 쓴다. 못 받았으면 앱에 든 기본 목록.
+    return { ...s, mainComplexes: remoteMain?.length ? remoteMain : DEFAULT_MAIN }
+  }, [saved, remoteMain])
+  useEffect(() => {
+    loadMainConfig()
+      .then(setRemoteMain)
+      .catch(() => {})
+  }, [])
   const [listings, setListings] = usePersist<Listing[]>('listings', LISTINGS)
   const [consults, setConsults] = usePersist<Consult[]>('consults', SAMPLE_CONSULTS)
   const [contracts, setContracts] = usePersist<Contract[]>('contracts', SAMPLE_CONTRACTS)

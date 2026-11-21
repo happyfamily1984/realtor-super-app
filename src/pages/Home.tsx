@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Chips, Field, Icon, Sheet, useData, type Intent, type Tab } from '../components/ui'
 import RegionPicker from '../components/RegionPicker'
-import { matchMain } from '../data/main'
+import { ComplexSheet } from '../components/MainData'
+import { useMyData } from '../lib/mydata'
 import { api } from '../lib/api'
 import { upcoming } from '../lib/match'
 import { dday, koDate, today, toast, won } from '../lib/util'
@@ -10,7 +11,8 @@ export default function Home({ go }: { go: (t: Tab, i?: Intent) => void }) {
   const { settings, setSettings, consults, contracts, listings } = useData()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(settings)
-  const [add, setAdd] = useState<{ name: string; alias: string; kind: '아파트' | '오피스텔' }>({ name: '', alias: '', kind: '아파트' })
+  const { data: my } = useMyData()
+  const [openComplex, setOpenComplex] = useState<string | null>(null)
   const newConsults = consults.filter((c) => c.status === '신규').length
   const active = contracts.filter((c) => c.status === '진행중').length
   const events = upcoming(contracts)
@@ -108,20 +110,33 @@ export default function Home({ go }: { go: (t: Tab, i?: Intent) => void }) {
         </div>
         <ul className="list">
           {settings.mainComplexes.map((m) => {
-            const n = listings.filter((l) => l.src && !l.gone && matchMain(l.group ?? l.complex, [m])).length
+            const c = my?.complexes.find((x) => x.id === m.id || x.name === m.name)
+            const area = c?.areas.find((a) => a.trade?.count12)
             return (
-              <li key={m.name} className="card line" onClick={() => go('listings')}>
+              <li key={m.name} className="card line" onClick={() => (c ? setOpenComplex(c.id) : go('briefing'))}>
                 <div className="grow">
                   <b>{m.name}</b>
-                  <small>{m.kind}</small>
+                  <small>
+                    {m.kind}
+                    {c ? ` · 매물 ${c.listings?.total ?? 0}건` : ''}
+                    {c?.auctionCount ? ` · 경매 ${c.auctionCount}건` : ''}
+                  </small>
                 </div>
-                <small>수집 매물 {n}건</small>
+                {area?.trade && (
+                  <div className="right">
+                    <b>{won(area.trade.median12)}</b>
+                    <small className={area.trade.changePct ? (area.trade.changePct > 0 ? 'up' : 'down') : ''}>
+                      {area.area}㎡ {area.trade.changePct !== undefined ? `${area.trade.changePct > 0 ? '+' : ''}${area.trade.changePct}%` : ''}
+                    </small>
+                  </div>
+                )}
               </li>
             )
           })}
         </ul>
       </section>
 
+      {my && openComplex && my.complexes.find((c) => c.id === openComplex) && <ComplexSheet complex={my.complexes.find((c) => c.id === openComplex)!} data={my} onClose={() => setOpenComplex(null)} />}
       {editing && (
         <Sheet
           title="사무소 설정"
@@ -133,8 +148,8 @@ export default function Home({ go }: { go: (t: Tab, i?: Intent) => void }) {
                 setSettings({ ...draft, office: draft.office.trim() || settings.office, region: draft.region.trim() || settings.region, lawdCd: draft.lawdCd.trim(), dong: draft.dong.trim() })
                 setEditing(false)
                 toast('저장했습니다')
-                // 손님용 앱에도 사무소 이름과 메인 단지를 알려 준다 (서버가 없으면 조용히 넘어간다)
-                api('office', { a: 'profile', office: draft.office.trim() || settings.office, main: draft.mainComplexes }).catch(() => {})
+                // 손님용 앱에도 사무소 이름을 알려 준다 (서버가 없으면 조용히 넘어간다)
+                api('office', { a: 'profile', office: draft.office.trim() || settings.office, main: settings.mainComplexes }).catch(() => {})
               }}
             >
               저장
@@ -151,46 +166,17 @@ export default function Home({ go }: { go: (t: Tab, i?: Intent) => void }) {
           </Field>
           <p className="hint">실거래와 뉴스는 여기서 고른 지역 기준으로 가져옵니다. 동을 ‘전체’로 두면 시·군·구 전체를 봅니다.</p>
           <h3 className="sub-h">메인 단지</h3>
-          <p className="hint">브리핑·매물·손님용 앱이 이 단지를 중심으로 보여 줍니다.</p>
+          <p className="hint">브리핑·매물·손님용 앱이 이 단지를 중심으로 보여 줍니다. 목록은 수집기와 함께 쓰는 설정 파일(저장소 main 브랜치의 config/main-complexes.json)에서 받아 오며, 단지를 바꾸려면 그 파일을 고칩니다.</p>
           <ul className="list main-edit">
-            {draft.mainComplexes.map((m) => (
-              <li key={m.name} className="card line">
-                <div className="grow">
-                  <b>
-                    <span className="tag">{m.kind}</span> {m.name}
-                  </b>
-                  {!!m.aliases?.length && <small>자료상 이름: {m.aliases.join(', ')}</small>}
-                </div>
-                <button type="button" className="icon-btn" aria-label={`${m.name} 빼기`} onClick={() => setDraft({ ...draft, mainComplexes: draft.mainComplexes.filter((x) => x !== m) })}>
-                  <Icon name="close" />
-                </button>
+            {settings.mainComplexes.map((m) => (
+              <li key={m.name} className="card">
+                <b>
+                  <span className="tag">{m.kind}</span> {m.name}
+                </b>
+                {!!m.aliases?.length && <small style={{ display: 'block' }}>자료상 이름: {m.aliases.join(', ')}</small>}
               </li>
             ))}
           </ul>
-          <div className="row">
-            <Field label="단지 이름">
-              <input value={add.name} onChange={(e) => setAdd({ ...add, name: e.target.value })} placeholder="예: 한가람삼성" />
-            </Field>
-            <Field label="자료상 다른 이름 (선택)">
-              <input value={add.alias} onChange={(e) => setAdd({ ...add, alias: e.target.value })} placeholder="예: 한가람(삼성)" />
-            </Field>
-          </div>
-          <div className="row add-main">
-            <Chips options={['아파트', '오피스텔'] as const} value={add.kind} onChange={(kind) => setAdd({ ...add, kind })} />
-            <button
-              type="button"
-              className="btn ghost small"
-              onClick={() => {
-                const name = add.name.trim()
-                if (!name) return toast('단지 이름을 입력해 주세요')
-                if (draft.mainComplexes.some((m) => m.name === name)) return toast('이미 있는 단지입니다')
-                setDraft({ ...draft, mainComplexes: [...draft.mainComplexes, { name, kind: add.kind, aliases: add.alias.split(',').map((x) => x.trim()).filter(Boolean) }] })
-                setAdd({ name: '', alias: '', kind: add.kind })
-              }}
-            >
-              단지 추가
-            </button>
-          </div>
           <h3 className="sub-h">내 매물 중복 광고 확인</h3>
           <Field label="네이버에 표시되는 우리 사무소 이름 (비우면 위 사무소 이름)">
             <input value={draft.myRealtor} onChange={(e) => setDraft({ ...draft, myRealtor: e.target.value })} />
