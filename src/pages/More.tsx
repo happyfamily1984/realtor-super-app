@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Confirm, Field, Icon, PageHead, Sheet, useData } from '../components/ui'
 import { api } from '../lib/api'
-import { downloadDataUrl, shrinkImage, shrinkSrc, today, toast } from '../lib/util'
+import { downloadDataUrl, photoGet, photoPut, shrinkImage, shrinkSrc, today, toast } from '../lib/util'
 
 interface Post {
   id: string
@@ -27,7 +27,7 @@ export default function More() {
   const loadPosts = () => api<{ posts: Post[] }>('office?a=posts').then((r) => setPosts(r.posts)).catch(() => setPosts(null))
   useEffect(() => void loadPosts(), [])
 
-  const backup = () => {
+  const backup = async () => {
     const data: Record<string, unknown> = { app: 'realtor-super-app', savedAt: new Date().toISOString() }
     BACKUP_KEYS.forEach((k) => {
       try {
@@ -36,10 +36,17 @@ export default function More() {
         /* 무시 */
       }
     })
+    // 계약서 사진(기기 안에 따로 저장)도 함께 담는다
+    const photos: Record<string, string> = {}
+    for (const id of contracts.flatMap((c) => c.photos)) {
+      const p = await photoGet(id).catch(() => undefined)
+      if (p) photos[id] = p
+    }
+    data.photos = photos
     const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }))
     downloadDataUrl(url, `중개사앱_백업_${today()}.json`)
     setTimeout(() => URL.revokeObjectURL(url), 10000)
-    toast('백업 파일을 저장했습니다 (계약서 사진은 포함되지 않습니다)')
+    toast(`백업 파일을 저장했습니다 (계약서 사진 ${Object.keys(photos).length}장 포함)`)
   }
   const pickRestore = async (f?: File) => {
     if (!f) return
@@ -128,7 +135,7 @@ export default function More() {
       <section className="block">
         <h2>자료 백업</h2>
         <p className="hint">
-          손님 상담 {consults.length}건, 내 매물 {properties.length}건, 계약 {contracts.length}건이 이 기기에 저장돼 있습니다. 기기를 바꾸거나 브라우저 자료를 지우면 사라지니 가끔 백업해 두세요.
+          손님 상담 {consults.length}건, 내 매물 {properties.length}건, 계약 {contracts.length}건이 이 기기에 저장돼 있습니다. 기기를 바꾸거나 브라우저 자료를 지우면 사라지니 가끔 백업해 두세요. 백업 파일에는 계약서 사진도 들어갑니다.
         </p>
         <div className="row">
           <button className="btn ghost" onClick={backup}>
@@ -216,8 +223,11 @@ export default function More() {
         <Confirm
           message="백업 파일의 내용으로 바꾸겠습니까? 지금 이 기기에 있는 상담·매물·계약은 덮어씁니다."
           onNo={() => setRestoring(null)}
-          onYes={() => {
+          onYes={async () => {
             BACKUP_KEYS.forEach((k) => restoring[k] != null && localStorage.setItem(k, JSON.stringify(restoring[k])))
+            const photos = (restoring.photos ?? {}) as Record<string, string>
+            for (const [id, p] of Object.entries(photos)) await photoPut(id, p).catch(() => {})
+            localStorage.setItem('samplesCleared', '1')
             location.reload()
           }}
         />
